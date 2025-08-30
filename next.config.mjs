@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  output: "standalone", // ✅ makes Netlify happy
 }
 
 export default nextConfig
