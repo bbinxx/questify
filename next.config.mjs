@@ -3,9 +3,9 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
-  output: "standalone", // ✅ Netlify compatibility
+  output: "standalone", // ✅ required for Netlify
   experimental: {
-    appDir: true, // just in case
+    appDir: true,
   },
 };
 
