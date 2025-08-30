@@ -5,7 +5,7 @@ const nextConfig = {
   images: { unoptimized: true },
   output: "standalone", // ✅ required for Netlify
   experimental: {
-    appDir: true,
+    // ...other experimental options (if needed)
   },
 };
 
