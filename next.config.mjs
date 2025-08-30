@@ -1,15 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
+  images: { unoptimized: true },
+  output: "standalone", // ✅ Netlify compatibility
+  experimental: {
+    appDir: true, // just in case
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
-  output: "standalone", // ✅ makes Netlify happy
-}
+};
 
-export default nextConfig
+export default nextConfig;
