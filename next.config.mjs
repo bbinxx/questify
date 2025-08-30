@@ -3,10 +3,6 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
-  output: "standalone", // ✅ required for Netlify
-  experimental: {
-    // ...other experimental options (if needed)
-  },
+  output: "standalone",   // ✅ prevents static-only export
 };
-
 export default nextConfig;
