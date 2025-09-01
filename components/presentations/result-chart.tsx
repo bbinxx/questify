@@ -1,6 +1,17 @@
 "use client"
 
 export function ResultChart({ question, options, counts }: { question: string; options: string[]; counts: number[] }) {
+  // Add error handling for undefined counts
+  if (!counts || !Array.isArray(counts)) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <p className="text-gray-600">No results available</p>
+        </div>
+      </div>
+    )
+  }
+  
   const total = counts.reduce((a, b) => a + b, 0)
 
   return (

@@ -1,16 +1,24 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BarChart3, ChevronLeft, ChevronRight, Copy, Edit3, Plus, Trash2, Users } from "lucide-react"
+import { BarChart3, ChevronLeft, ChevronRight, Copy, Edit3, Plus, Trash2, Users, Settings, ArrowUp, ArrowDown } from "lucide-react"
 import Link from "next/link"
 import { JoinForm } from "@/components/presentations/join-form"
+import { SlideEditor, type SlideRecord, type SlideElements, type QuestionType } from "@/components/presentations/slide-editor"
 
 type Slide = {
   id: number
   question: string
-  type: "multiple_choice"
+  type: QuestionType
   options: string[]
   responses: number[]
+  settings: {
+    allowMultiple?: boolean
+    showResults?: boolean
+    timeLimit?: number
+    maxLength?: number
+    required?: boolean
+  }
 }
 
 type Presentation = {
@@ -21,6 +29,11 @@ type Presentation = {
   is_active: boolean
   current_slide: number
   slides: Slide[]
+  settings?: {
+    allowAnonymous?: boolean
+    showResults?: boolean
+    timeLimit?: number
+  }
 }
 
 const mockData: { presentations: Presentation[] } = {
@@ -39,15 +52,55 @@ const mockData: { presentations: Presentation[] } = {
           type: "multiple_choice",
           options: ["Instagram", "Twitter", "Facebook", "TikTok"],
           responses: [15, 8, 12, 25],
+          settings: {
+            allowMultiple: true,
+            showResults: true
+          }
         },
         {
           id: 2,
-          question: "How often do you shop online?",
-          type: "multiple_choice",
-          options: ["Daily", "Weekly", "Monthly", "Rarely"],
-          responses: [5, 18, 22, 15],
+          question: "How would you describe our product?",
+          type: "word_cloud",
+          options: [],
+          responses: [],
+          settings: {
+            showResults: true
+          }
         },
+        {
+          id: 3,
+          question: "What is your preferred development environment?",
+          type: "single_choice",
+          options: ["VS Code", "IntelliJ", "Sublime Text", "Vim", "Other"],
+          responses: [12, 8, 5, 3, 2],
+          settings: {
+            showResults: true
+          }
+        },
+        {
+          id: 4,
+          question: "Tell us about your biggest challenge in software development",
+          type: "text",
+          options: [],
+          responses: [],
+          settings: {
+            maxLength: 500
+          }
+        },
+        {
+          id: 5,
+          question: "Important Discussion Point",
+          type: "question_only",
+          options: [],
+          responses: [],
+          settings: {}
+        }
       ],
+      settings: {
+        allowAnonymous: true,
+        showResults: true,
+        timeLimit: 60
+      }
     },
     {
       id: 2,
@@ -60,11 +113,18 @@ const mockData: { presentations: Presentation[] } = {
         {
           id: 3,
           question: "Rate your job satisfaction",
-          type: "multiple_choice",
+          type: "single_choice",
           options: ["Excellent", "Good", "Fair", "Poor"],
           responses: [12, 18, 8, 2],
+          settings: {
+            showResults: true
+          }
         },
       ],
+      settings: {
+        allowAnonymous: false,
+        showResults: true
+      }
     },
   ],
 }
@@ -104,6 +164,29 @@ function ResultChart({ slide }: { slide: Slide }) {
   const maxResponses = Math.max(...slide.responses)
   const totalResponses = slide.responses.reduce((a, b) => a + b, 0)
 
+  if (slide.type === 'word_cloud') {
+    return (
+      <div className="space-y-6">
+        <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>
+        <div className="text-center text-gray-500">
+          <p>Word cloud visualization would appear here</p>
+          <p className="text-sm">Words would grow and shrink based on frequency</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (slide.type === 'text' || slide.type === 'question_only') {
+    return (
+      <div className="space-y-6">
+        <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>
+        <div className="text-center text-gray-500">
+          <p>Text responses would be displayed here</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>
@@ -134,62 +217,6 @@ function ResultChart({ slide }: { slide: Slide }) {
   )
 }
 
-function SlideEditor({
-  slide,
-  slideIndex,
-  onUpdate,
-  onDelete,
-}: {
-  slide: Slide
-  slideIndex: number
-  onUpdate: (idx: number, updates: Partial<Slide>) => void
-  onDelete: (idx: number) => void
-}) {
-  return (
-    <div className="mb-4 rounded-lg bg-white p-6 shadow-lg">
-      <div className="mb-4 flex items-start justify-between">
-        <h3 className="text-lg font-semibold">Slide {slideIndex + 1}</h3>
-        <button
-          onClick={() => onDelete(slideIndex)}
-          className="p-1 text-red-500 hover:text-red-700"
-          aria-label="Delete slide"
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
-
-      <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium text-gray-700">Question</label>
-        <input
-          type="text"
-          value={slide.question}
-          onChange={(e) => onUpdate(slideIndex, { question: e.target.value })}
-          className="w-full rounded-md border border-gray-300 p-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          placeholder="Enter your question..."
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">Options</label>
-        {slide.options.map((option, optionIndex) => (
-          <input
-            key={optionIndex}
-            type="text"
-            value={option}
-            onChange={(e) => {
-              const newOptions = [...slide.options]
-              newOptions[optionIndex] = e.target.value
-              onUpdate(slideIndex, { options: newOptions })
-            }}
-            className="w-full rounded-md border border-gray-300 p-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-            placeholder={`Option ${optionIndex + 1}`}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default function Page() {
   const [currentView, setCurrentView] = useState<View>("home")
   const [presentations, setPresentations] = useState<Presentation[]>([])
@@ -198,6 +225,7 @@ export default function Page() {
   const [viewerPresentation, setViewerPresentation] = useState<Presentation | null>(null)
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [showResults, setShowResults] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     // Load presentations from the mock client
@@ -225,8 +253,16 @@ export default function Page() {
           type: "multiple_choice",
           options: ["Option 1", "Option 2", "Option 3", "Option 4"],
           responses: [0, 0, 0, 0],
+          settings: {
+            allowMultiple: false,
+            showResults: true
+          }
         },
       ],
+      settings: {
+        allowAnonymous: true,
+        showResults: true
+      }
     }
     mockData.presentations.push(newPresentation)
     setPresentations([...mockData.presentations])
@@ -266,8 +302,12 @@ export default function Page() {
       id: Date.now(),
       question: "New Question?",
       type: "multiple_choice",
-      options: ["Option 1", "Option 2", "Option 3", "Option 4"],
-      responses: [0, 0, 0, 0],
+      options: ["Option 1", "Option 2"],
+      responses: [0, 0],
+      settings: {
+        allowMultiple: false,
+        showResults: true
+      }
     }
     updated.slides.push(newSlide)
     setSelectedPresentation(updated)
@@ -288,6 +328,38 @@ export default function Page() {
     if (currentSlideIndex >= updated.slides.length) {
       setCurrentSlideIndex(Math.max(0, updated.slides.length - 1))
     }
+  }
+
+  const duplicateSlide = (slideIndex: number) => {
+    if (!selectedPresentation) return
+    const updated = { ...selectedPresentation }
+    const slideToDuplicate = updated.slides[slideIndex]
+    const newSlide: Slide = {
+      ...slideToDuplicate,
+      id: Date.now(),
+      question: `${slideToDuplicate.question} (Copy)`
+    }
+    updated.slides.push(newSlide)
+    setSelectedPresentation(updated)
+
+    const idx = mockData.presentations.findIndex((p) => p.id === updated.id)
+    if (idx !== -1) mockData.presentations[idx] = updated
+  }
+
+  const moveSlide = (slideIndex: number, direction: 'up' | 'down') => {
+    if (!selectedPresentation) return
+    const updated = { ...selectedPresentation }
+    const newIndex = direction === 'up' ? slideIndex - 1 : slideIndex + 1
+    
+    if (newIndex < 0 || newIndex >= updated.slides.length) return
+    
+    const [movedSlide] = updated.slides.splice(slideIndex, 1)
+    updated.slides.splice(newIndex, 0, movedSlide)
+    
+    setSelectedPresentation(updated)
+
+    const idx = mockData.presentations.findIndex((p) => p.id === updated.id)
+    if (idx !== -1) mockData.presentations[idx] = updated
   }
 
   const nextSlide = () => {
@@ -330,8 +402,8 @@ export default function Page() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="container mx-auto px-4 py-8">
           <div className="mb-12 text-center">
-            <h1 className="mb-4 text-4xl font-bold text-gray-800">Question Presentations</h1>
-            <p className="text-gray-600">Join a presentation or manage your own</p>
+            <h1 className="mb-4 text-4xl font-bold text-gray-800">Questify - Interactive Presentations</h1>
+            <p className="text-gray-600">Create and join interactive presentations with real-time audience engagement</p>
           </div>
 
           <JoinForm />
@@ -417,35 +489,179 @@ export default function Page() {
               <span className="text-gray-600">
                 Code: <code className="rounded bg-gray-200 px-2 py-1">{selectedPresentation.code}</code>
               </span>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                <Settings size={16} />
+                Settings
+              </button>
               <button onClick={() => setCurrentView("admin-list")} className="text-gray-600 hover:text-gray-800">
                 ← Back
               </button>
             </div>
           </div>
 
+          {/* Settings Panel */}
+          {showSettings && (
+            <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Presentation Settings</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Allow Anonymous Participation
+                  </label>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedPresentation.settings?.allowAnonymous || false}
+                      onChange={(e) => {
+                        const updated = { ...selectedPresentation }
+                        updated.settings = { ...updated.settings, allowAnonymous: e.target.checked }
+                        setSelectedPresentation(updated)
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Allow anonymous responses</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Show Results to Participants
+                  </label>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedPresentation.settings?.showResults || false}
+                      onChange={(e) => {
+                        const updated = { ...selectedPresentation }
+                        updated.settings = { ...updated.settings, showResults: e.target.checked }
+                        setSelectedPresentation(updated)
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Show live results</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Time Limit (seconds)
+                  </label>
+                  <input
+                    type="number"
+                    value={selectedPresentation.settings?.timeLimit || ''}
+                    onChange={(e) => {
+                      const updated = { ...selectedPresentation }
+                      updated.settings = { ...updated.settings, timeLimit: parseInt(e.target.value) || undefined }
+                      setSelectedPresentation(updated)
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="No limit"
+                    min="0"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             {/* Left Panel - Slide Editor */}
             <div>
               <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
-                <h2 className="mb-4 text-xl font-semibold">Slide Editor</h2>
-                <div className="max-h-96 overflow-y-auto">
-                  {selectedPresentation.slides.map((slide, index) => (
-                    <SlideEditor
-                      key={slide.id}
-                      slide={slide}
-                      slideIndex={index}
-                      onUpdate={updateSlide}
-                      onDelete={deleteSlide}
-                    />
-                  ))}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold">Slide Editor</h2>
+                  <button
+                    onClick={addSlide}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus size={16} />
+                    Add Slide
+                  </button>
                 </div>
-                <button
-                  onClick={addSlide}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-green-500 py-2 text-white transition-colors hover:bg-green-600"
-                >
-                  <Plus size={16} />
-                  Add Slide
-                </button>
+                
+                <div className="max-h-96 overflow-y-auto space-y-4">
+                  {selectedPresentation.slides.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Plus size={24} className="text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No slides yet</h3>
+                      <p className="text-gray-500 mb-4">Create your first slide to get started</p>
+                      <button
+                        onClick={addSlide}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        Add First Slide
+                      </button>
+                    </div>
+                  ) : (
+                    selectedPresentation.slides.map((slide, index) => (
+                      <div key={slide.id} className="relative">
+                        {/* Slide Controls */}
+                        <div className="absolute -top-2 -right-2 z-10 flex items-center gap-1 bg-white border border-gray-200 rounded-lg shadow-lg p-1">
+                          {index > 0 && (
+                            <button
+                              onClick={() => moveSlide(index, 'up')}
+                              className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                              title="Move up"
+                            >
+                              <ArrowUp size={14} />
+                            </button>
+                          )}
+                          {index < selectedPresentation.slides.length - 1 && (
+                            <button
+                              onClick={() => moveSlide(index, 'down')}
+                              className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                              title="Move down"
+                            >
+                              <ArrowDown size={14} />
+                            </button>
+                          )}
+                        </div>
+
+                        <SlideEditor
+                          slide={{
+                            id: slide.id.toString(),
+                            presentation_id: selectedPresentation.id.toString(),
+                            position: index,
+                            elements: {
+                              question: slide.question,
+                              type: slide.type,
+                              options: slide.options,
+                              settings: slide.settings
+                            }
+                          }}
+                          onUpdate={async (slideId, updated) => {
+                            const slideIndex = selectedPresentation.slides.findIndex(s => s.id.toString() === slideId)
+                            if (slideIndex !== -1) {
+                              updateSlide(slideIndex, {
+                                question: updated.question,
+                                type: updated.type,
+                                options: updated.options,
+                                settings: updated.settings
+                              })
+                            }
+                          }}
+                          onDelete={async (slideId) => {
+                            const slideIndex = selectedPresentation.slides.findIndex(s => s.id.toString() === slideId)
+                            if (slideIndex !== -1) {
+                              deleteSlide(slideIndex)
+                            }
+                          }}
+                          onDuplicate={async (slideId) => {
+                            const slideIndex = selectedPresentation.slides.findIndex(s => s.id.toString() === slideId)
+                            if (slideIndex !== -1) {
+                              duplicateSlide(slideIndex)
+                            }
+                          }}
+                          isActive={currentSlideIndex === index}
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 
@@ -491,16 +707,30 @@ export default function Page() {
                   ) : (
                     <div className="space-y-6 text-center">
                       <h2 className="text-2xl font-bold">{currentSlide.question}</h2>
-                      <div className="grid grid-cols-2 gap-4">
-                        {currentSlide.options.map((option, index) => (
-                          <button
-                            key={index}
-                            className="rounded-lg border-2 border-gray-300 bg-white p-4 transition-colors hover:border-blue-300 hover:bg-blue-50"
-                          >
-                            {option}
-                          </button>
-                        ))}
-                      </div>
+                      {currentSlide.type === 'multiple_choice' || currentSlide.type === 'single_choice' ? (
+                        <div className="grid grid-cols-1 gap-4">
+                          {currentSlide.options.map((option, index) => (
+                            <button
+                              key={index}
+                              className="rounded-lg border-2 border-gray-300 bg-white p-4 text-left hover:bg-gray-50"
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      ) : currentSlide.type === 'text' ? (
+                        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                          <p className="text-gray-500">Text response area</p>
+                        </div>
+                      ) : currentSlide.type === 'word_cloud' ? (
+                        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                          <p className="text-gray-500">Word cloud input area</p>
+                        </div>
+                      ) : (
+                        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                          <p className="text-gray-500">Question only - no response needed</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -535,17 +765,45 @@ export default function Page() {
               ) : (
                 <div className="space-y-8 text-center">
                   <h2 className="text-3xl font-bold text-gray-800">{currentSlide.question}</h2>
-                  <div className="mx-auto grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-2">
-                    {currentSlide.options.map((option, index) => (
-                      <button
-                        key={index}
-                        onClick={() => submitResponse(index)}
-                        className="transform rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 p-6 text-lg font-semibold text-white shadow-lg transition-all hover:scale-105 hover:from-blue-600 hover:to-purple-600"
-                      >
-                        {option}
+                  {currentSlide.type === 'multiple_choice' || currentSlide.type === 'single_choice' ? (
+                    <div className="mx-auto grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-2">
+                      {currentSlide.options.map((option, index) => (
+                        <button
+                          key={index}
+                          onClick={() => submitResponse(index)}
+                          className="transform rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 p-6 text-lg font-semibold text-white shadow-lg transition-all hover:scale-105 hover:from-blue-600 hover:to-purple-600"
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  ) : currentSlide.type === 'text' ? (
+                    <div className="mx-auto max-w-2xl">
+                      <textarea
+                        className="w-full p-4 border-2 border-gray-300 rounded-lg resize-none"
+                        placeholder="Enter your response..."
+                        rows={4}
+                      />
+                      <button className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Submit Response
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  ) : currentSlide.type === 'word_cloud' ? (
+                    <div className="mx-auto max-w-2xl">
+                      <input
+                        type="text"
+                        className="w-full p-4 border-2 border-gray-300 rounded-lg"
+                        placeholder="Enter words separated by spaces..."
+                      />
+                      <button className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Submit Words
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mx-auto max-w-2xl">
+                      <p className="text-gray-600">This is a discussion question. No response needed.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
