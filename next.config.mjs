@@ -48,5 +48,8 @@ const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
   output: "standalone",   // ✅ prevents static-only export
+   experimental: {
+    allowedDevOrigins: process.env.NODE_ENV === 'development' ? ['*'] : []
+  }
 };
 export default nextConfig;
