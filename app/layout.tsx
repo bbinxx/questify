@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
-import InstallPrompt from '@/components/InstallPrompt'
+import MobileInstallPrompt from '@/components/MobileInstallPrompt'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -81,7 +81,7 @@ export default function RootLayout({
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         {children}
-        <InstallPrompt />
+        <MobileInstallPrompt />
         <Analytics />
       </body>
     </html>
