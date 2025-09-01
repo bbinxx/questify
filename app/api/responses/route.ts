@@ -3,7 +3,7 @@ import { getServerSupabase } from "@/lib/supabase/server"
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const supabase = getServerSupabase()
+  const supabase = await getServerSupabase()
   const { error } = await supabase.from("responses").insert({
     presentation_id: body.presentation_id,
     slide_id: body.slide_id,
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const presentation_id = searchParams.get("presentation_id")
   const slide_id = searchParams.get("slide_id")
   const options = Number(searchParams.get("options") || "0")
-  const supabase = getServerSupabase()
+  const supabase = await getServerSupabase()
   const { data, error } = await supabase
     .from("responses")
     .select("option_index")

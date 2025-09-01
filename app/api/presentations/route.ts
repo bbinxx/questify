@@ -6,14 +6,14 @@ function generateCode() {
 }
 
 export async function GET() {
-  const supabase = getServerSupabase()
+  const supabase = await getServerSupabase()
   const { data, error } = await supabase.from("presentations").select("*").order("created_at", { ascending: false })
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ presentations: data ?? [] })
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = getServerSupabase()
+  const supabase = await getServerSupabase()
   const title = "New Presentation"
   const code = generateCode()
   const { data, error } = await supabase
