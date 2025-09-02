@@ -5,14 +5,16 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, Users, BarChart3 } from "lucide-react"
 import { ResultChart } from "@/components/presentations/result-chart"
+import { WordCloud } from "@/components/presentations/word-cloud"
 import { usePresentationRealtime } from "@/hooks/use-presentation-realtime"
 import { useParams } from "next/navigation"
 import { getBrowserSupabase } from "@/lib/supabase/client"
+import { QuestionType, SlideElements } from "@/components/presentations/slide-editor"
 
 type Slide = {
   id: string
   position: number
-  elements: { question: string; options: string[] }
+  elements: SlideElements
 }
 type Presentation = {
   id: string
@@ -27,12 +29,13 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 export default function PresentControlPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
-  const { data, mutate } = useSWR<{ presentation: Presentation; slides: Slide[] }>(
+  const { data, mutate, error, isLoading } = useSWR<{ presentation: Presentation; slides: Slide[] }>(
     id ? `/api/presentations/${id}` : null,
     fetcher,
   )
 
   const [busy, setBusy] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null);
 
   usePresentationRealtime({
     presentationId: id,
@@ -54,23 +57,34 @@ export default function PresentControlPage() {
         event: "control",
         payload: nextState,
       })
-    } catch {
-      // ignore broadcast errors in presenter UI
+    } catch (err) {
+      console.error("Failed to broadcast control:", err);
+      setApiError("Failed to broadcast control.");
     }
   }
 
   const updatePresentation = async (payload: Partial<Presentation>) => {
     setBusy(true)
-    await fetch(`/api/presentations/${id}`, { method: "PATCH", body: JSON.stringify(payload) })
-    setBusy(false)
-    if (presentation) {
-      const nextState = {
-        current_slide: payload.current_slide ?? presentation.current_slide,
-        show_results: payload.show_results ?? presentation.show_results,
+    setApiError(null);
+    try {
+      const res = await fetch(`/api/presentations/${id}`, { method: "PATCH", body: JSON.stringify(payload) })
+      if (!res.ok) {
+        throw new Error(`Failed to update presentation: ${res.statusText}`);
       }
-      broadcastControl(nextState)
+      if (presentation) {
+        const nextState = {
+          current_slide: payload.current_slide ?? presentation.current_slide,
+          show_results: payload.show_results ?? presentation.show_results,
+        }
+        broadcastControl(nextState)
+      }
+      mutate()
+    } catch (err) {
+      console.error("Failed to update presentation:", err);
+      setApiError("Failed to update presentation.");
+    } finally {
+      setBusy(false)
     }
-    mutate()
   }
 
   const goPrev = () => {
@@ -104,7 +118,10 @@ export default function PresentControlPage() {
     updatePresentation({ current_slide: idx, show_results: false })
   }
 
-  if (!presentation) return <div className="p-8">Loading…</div>
+  if (isLoading) return <div className="p-8">Loading presentation...</div>
+  if (error) return <div className="p-8 text-red-500">Error loading presentation: {error.message}</div>
+
+  if (!presentation) return <div className="p-8">No presentation found.</div>
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -133,6 +150,8 @@ export default function PresentControlPage() {
           </div>
         </div>
 
+        {apiError && <div className="p-4 text-red-500 bg-red-100 border border-red-200 rounded-md m-4">Error: {apiError}</div>}
+
         {/* Controls */}
         <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
           <div className="mb-4 flex items-center justify-between">
@@ -159,7 +178,7 @@ export default function PresentControlPage() {
             <button
               onClick={toggleResults}
               disabled={busy}
-              className={`rounded-md px-3 py-2 text-white transition-colors ${presentation.show_results ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-500 hover:bg-blue-600"}`}
+              className={`rounded-md px-3 py-2 text-white transition-colors ${presentation.show_results ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-500 hover:bg-blue-600"} disabled:opacity-50`}
               aria-label="Toggle results"
             >
               <div className="flex items-center gap-2">
@@ -185,7 +204,8 @@ export default function PresentControlPage() {
               <select
                 value={presentation.current_slide}
                 onChange={(e) => jumpTo(Number(e.target.value))}
-                className="rounded-md border border-gray-300 px-2 py-1"
+                disabled={busy}
+                className="rounded-md border border-gray-300 px-2 py-1 disabled:opacity-50"
               >
                 {slides.map((s, idx) => (
                   <option key={s.id} value={idx}>
@@ -204,16 +224,36 @@ export default function PresentControlPage() {
               ) : (
                 <div className="space-y-6 text-center">
                   <h2 className="text-2xl font-bold text-gray-800">{currentSlide.elements.question}</h2>
-                  <div className="mx-auto grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-2">
-                    {currentSlide.elements.options.map((opt, i) => (
-                      <div
-                        key={i}
-                        className="rounded-lg bg-white p-4 text-lg font-medium text-gray-800 shadow-sm ring-1 ring-gray-200"
-                      >
-                        {opt}
-                      </div>
-                    ))}
-                  </div>
+                  {currentSlide.elements.type === 'multiple_choice' || currentSlide.elements.type === 'single_choice' ? (
+                    <div className="mx-auto grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-2">
+                      {currentSlide.elements.options.map((opt, i) => (
+                        <div
+                          key={i}
+                          className="rounded-lg bg-white p-4 text-lg font-medium text-gray-800 shadow-sm ring-1 ring-gray-200"
+                        >
+                          {opt}
+                        </div>
+                      ))}
+                    </div>
+                  ) : currentSlide.elements.type === 'text' ? (
+                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                      <p className="text-gray-500">Text response area</p>
+                    </div>
+                  ) : currentSlide.elements.type === 'word_cloud' ? (
+                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                      <p className="text-gray-500">Word cloud input area</p>
+                    </div>
+                  ) : currentSlide.elements.type === 'guess_number' ? (
+                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                      <p className="text-gray-500">Guess number input area</p>
+                    </div>
+                  ) : currentSlide.elements.type === 'question_only' ? (
+                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                      <p className="text-gray-500">Question only - no response needed</p>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500">Unsupported slide type</div>
+                  )}
                 </div>
               )
             ) : (
@@ -227,10 +267,20 @@ export default function PresentControlPage() {
 }
 
 function ResultsBlock({ presentationId, slide }: { presentationId: string; slide: Slide }) {
-  const { data } = useSWR<{ counts: number[] }>(
-    `/api/responses?presentation_id=${presentationId}&slide_id=${slide.id}&options=${slide.elements.options.length}`,
+  const { data, error, isLoading } = useSWR<{ counts: number[]; cloud?: { text: string; value: number }[] }>(
+    slide.elements.type === 'word_cloud'
+      ? `/api/responses?presentation_id=${presentationId}&slide_id=${slide.id}&type=word_cloud`
+      : `/api/responses?presentation_id=${presentationId}&slide_id=${slide.id}&options=${slide.elements.options.length}`,
     (u) => fetch(u).then((r) => r.json()),
   )
+
+  if (isLoading) return <div className="text-center text-gray-500">Loading results...</div>
+  if (error) return <div className="text-center text-red-500">Error loading results.</div>
+
+  if (slide.elements.type === 'word_cloud') {
+    return <WordCloud words={data?.cloud ?? []} />
+  }
+
   return (
     <ResultChart
       question={slide.elements.question}
