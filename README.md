@@ -373,9 +373,10 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
    - Check CORS configuration
 
 2. **Database Errors**
-   - Ensure tables are created
-   - Check RLS policies
-   - Verify credentials
+   - Ensure Firebase collections are correctly configured
+   - Check Firebase Security Rules
+   - Verify Firebase credentials
+
 
 3. **PWA Not Installing**
    - Check HTTPS requirement
@@ -397,7 +398,7 @@ NODE_ENV=development
 ### **Logs**
 - **Server Logs**: Socket.IO server console
 - **Client Logs**: Browser developer tools
-- **Database Logs**: Supabase dashboard
+- **Database Logs**: Firebase console
 
 ## 🤝 **Contributing**
 
