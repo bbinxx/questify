@@ -53,10 +53,13 @@ The system provides real-time functionality for live presentations including:
    - Comprehensive error handling
    - Debug mode support
 
-3. **Database Tables** (`scripts/004_socket_sessions.sql`)
+3. **Database Tables**
    - `socket_sessions`: Tracks active user sessions
    - `presentation_rooms`: Manages presentation rooms
    - `socket_events`: Logs real-time events for analytics
+   - `presentations`: Stores presentation details
+   - `slides`: Stores slide details for each presentation
+   - `responses`: Stores participant responses
 
 4. **Enhanced UI Components**
    - `RealtimePresentation`: Presenter view with live vote visualization
@@ -67,18 +70,17 @@ The system provides real-time functionality for live presentations including:
 
 ### **1. Database Setup**
 
-Run the SQL script to create the necessary tables:
-
-```sql
--- Execute the script in your Supabase SQL editor
--- File: scripts/004_socket_sessions.sql
-```
+This project uses Supabase for its database. Ensure your Supabase project is set up and configured. You can use the `init.sql` file in the project root to set up the necessary tables and Row Level Security (RLS) policies.
 
 ### **2. Environment Variables**
 
-Add the following environment variables to your `.env.local`:
+Add the following environment variables to your `.env.local` file:
 
 ```env
+# Supabase Credentials
+NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+
 # Socket.IO Server
 SOCKET_PORT=3001
 NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
@@ -86,18 +88,12 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
 # Debug Mode (optional)
 NODE_ENV=development
 DEBUG=socket.io:*
-
-# Supabase (if not already configured)
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 ### **3. Install Dependencies**
 
 ```bash
-npm install socket.io socket.io-client @types/socket.io express cors dotenv tsx @types/express
+npm install socket.io socket.io-client @types/socket.io express cors dotenv tsx @types/express @supabase/supabase-js @supabase/auth-helpers-nextjs
 ```
 
 ### **4. Start the Socket.IO Server**
@@ -322,44 +318,62 @@ function CustomComponent() {
 
 ## 🗄️ **Database Schema**
 
-### **socket_sessions**
-```sql
-- id: UUID (Primary Key)
-- socket_id: TEXT (Unique)
-- user_id: UUID (References auth.users)
-- presentation_id: UUID (References presentations)
-- user_name: TEXT
-- user_role: TEXT (presenter/participant)
-- is_active: BOOLEAN
-- joined_at: TIMESTAMPTZ
-- last_activity: TIMESTAMPTZ
-- created_at: TIMESTAMPTZ
-- updated_at: TIMESTAMPTZ
-```
+This project uses Supabase. Data is organized into tables. Here's a conceptual overview of the main tables and their typical fields:
 
-### **presentation_rooms**
-```sql
-- id: UUID (Primary Key)
-- presentation_id: UUID (References presentations)
-- room_code: TEXT (Unique)
-- is_active: BOOLEAN
-- current_slide_index: INTEGER
-- show_results: BOOLEAN
-- presenter_socket_id: TEXT
-- participant_count: INTEGER
-- created_at: TIMESTAMPTZ
-- updated_at: TIMESTAMPTZ
-```
+### **socket_sessions (Table)**
+- `id`: UUID (Primary Key)
+- `socket_id`: TEXT (Unique)
+- `user_id`: UUID (References auth.users.id)
+- `presentation_id`: UUID (References presentations.id)
+- `user_name`: TEXT
+- `user_role`: TEXT (presenter/participant)
+- `is_active`: BOOLEAN
+- `joined_at`: TIMESTAMP
+- `last_activity`: TIMESTAMP
 
-### **socket_events**
-```sql
-- id: UUID (Primary Key)
-- socket_id: TEXT
-- presentation_id: UUID (References presentations)
-- event_type: TEXT
-- event_data: JSONB
-- timestamp: TIMESTAMPTZ
-```
+### **presentation_rooms (Table)**
+- `id`: UUID (Primary Key)
+- `presentation_id`: UUID (References presentations.id, Unique)
+- `room_code`: TEXT (Unique)
+- `is_active`: BOOLEAN
+- `current_slide_index`: INTEGER
+- `show_results`: BOOLEAN
+- `presenter_socket_id`: TEXT
+- `participant_count`: INTEGER
+- `created_at`: TIMESTAMP
+
+### **socket_events (Table)**
+- `id`: UUID (Primary Key)
+- `socket_id`: TEXT
+- `presentation_id`: UUID (References presentations.id)
+- `event_type`: TEXT
+- `event_data`: JSONB
+- `created_at`: TIMESTAMP
+
+### **presentations (Table)**
+- `id`: UUID (Primary Key)
+- `title`: TEXT
+- `code`: TEXT (Unique)
+- `user_id`: UUID (References auth.users.id)
+- `created_at`: TIMESTAMP
+
+### **slides (Table)**
+- `id`: UUID (Primary Key)
+- `presentation_id`: UUID (References presentations.id)
+- `question`: TEXT
+- `type`: TEXT (e.g., 'multiple_choice', 'word_cloud')
+- `options`: JSONB
+- `order`: INTEGER
+- `created_at`: TIMESTAMP
+
+### **responses (Table)**
+- `id`: UUID (Primary Key)
+- `presentation_id`: UUID (References presentations.id)
+- `slide_id`: UUID (References slides.id)
+- `session_id`: TEXT (Socket.ID)
+- `user_name`: TEXT
+- `response_data`: JSONB
+- `created_at`: TIMESTAMP
 
 ## ✨ **Enhanced Features**
 
@@ -403,9 +417,10 @@ function CustomComponent() {
 - Users can only access sessions for presentations they have access to
 - Users can only manage their own sessions
 - Presentation owners can manage rooms
+- Policies are defined in `init.sql`
 
 ### **Authentication**
-- Socket connections are validated against Supabase auth
+- Socket connections are validated against Supabase Authentication
 - User sessions are tracked and validated
 - Activity monitoring prevents abuse
 
@@ -451,10 +466,9 @@ NODE_ENV=development
    - Review server logs for errors
 
 2. **Database Errors**
-   - Ensure Supabase tables are created
-   - Check RLS policies
-   - Verify database credentials
-   - Review database logs
+   - Ensure Supabase tables and RLS policies are correctly configured using `init.sql`
+   - Check Supabase logs for errors
+   - Verify Supabase credentials
 
 3. **Events Not Received**
    - Check room code matches
