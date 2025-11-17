@@ -1,40 +1,66 @@
-import type { NextRequest } from "next/server"
-import { getServerSupabase } from "@/lib/supabase/server"
+import { getServerSupabase } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params // Await params before using
-  const supabase = await getServerSupabase()
-  const { data: presentation, error } = await supabase.from("presentations").select("*").eq("id", id).single()
-  if (error) return Response.json({ error: error.message }, { status: 500 })
-  const { data: slides, error: e2 } = await supabase
-    .from("slides")
-    .select("*")
-    .eq("presentation_id", id)
-    .order("position", { ascending: true })
-  if (e2) return Response.json({ error: e2.message }, { status: 500 })
-  return Response.json({ presentation, slides })
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const { id } = params
+  const supabase = getServerSupabase()
+
+  const { data: presentation, error } = await supabase
+    .from('presentations')
+    .select('*, slides(*)')
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    console.error('Error fetching presentation:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!presentation) {
+    return NextResponse.json({ error: 'Presentation not found' }, { status: 404 })
+  }
+
+  return NextResponse.json(presentation)
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params // Await params before using
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const { id } = params
   const payload = await req.json()
-  const supabase = await getServerSupabase()
-  const { data, error } = await supabase.from("presentations").update(payload).eq("id", id).select().single()
-  if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json({ presentation: data })
+  const supabase = getServerSupabase()
+
+  const { data: updatedPresentation, error } = await supabase
+    .from('presentations')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating presentation:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!updatedPresentation) {
+    return NextResponse.json({ error: 'Presentation not found' }, { status: 404 })
+  }
+
+  return NextResponse.json(updatedPresentation)
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params // Await params before using
-  const supabase = await getServerSupabase()
-  // Remove responses associated with this presentation (in case FK cascade isn't set)
-  const { error: e1 } = await supabase.from("responses").delete().eq("presentation_id", id)
-  if (e1) return Response.json({ error: e1.message }, { status: 500 })
-  // Remove slides for this presentation
-  const { error: e2 } = await supabase.from("slides").delete().eq("presentation_id", id)
-  if (e2) return Response.json({ error: e2.message }, { status: 500 })
-  // Remove the presentation itself
-  const { error: e3 } = await supabase.from("presentations").delete().eq("id", id)
-  if (e3) return Response.json({ error: e3.message }, { status: 500 })
-  return Response.json({ ok: true })
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const { id } = params
+  const supabase = getServerSupabase()
+
+  const { error } = await supabase
+    .from('presentations')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('Error deleting presentation:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ message: 'Presentation deleted successfully' })
 }
