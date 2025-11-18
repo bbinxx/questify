@@ -1,24 +1,25 @@
-import { getServerSupabase } from "@/lib/supabase/server"
+import { getServerSupabase } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
-export async function GET(_: Request, { params }: { params: Promise<{ code: string }> }) {
-  const { code } = await params // Await params before using
-  const supabase = await getServerSupabase()
-  
+export async function GET(req: Request, { params }: { params: { code: string } }) {
+  const { code } = params
+  const supabase = getServerSupabase()
+
   const { data: presentation, error } = await supabase
-    .from("presentations")
-    .select("*")
-    .eq("code", code) // Use the destructured code
+    .from('presentations')
+    .select('*, slides(*)')
+    .eq('code', code)
     .single()
-    
-  if (error) return Response.json({ error: error.message }, { status: 404 })
-  
-  const { data: slides, error: e2 } = await supabase
-    .from("slides")
-    .select("*")
-    .eq("presentation_id", presentation.id)
-    .order("position", { ascending: true })
-    
-  if (e2) return Response.json({ error: e2.message }, { status: 500 })
-  
-  return Response.json({ presentation, slides })
+
+  if (error) {
+    console.error('Error fetching presentation by code:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!presentation) {
+    return NextResponse.json({ error: 'Presentation not found' }, { status: 404 })
+  }
+
+  return NextResponse.json(presentation)
 }
