@@ -1,37 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServer } from 'http'
-import { initializeSocket } from '@/lib/socket/server'
 
-// Create HTTP server for Socket.IO
-const server = createServer()
-
-// Initialize Socket.IO
-const socketManager = initializeSocket(server)
-
-// Handle Socket.IO upgrade requests
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const upgrade = searchParams.get('upgrade')
-  
-  if (upgrade === 'websocket') {
-    // This will be handled by Socket.IO
-    return new NextResponse(null, { status: 101 })
-  }
-  
-  return NextResponse.json({ 
-    message: 'Socket.IO server is running',
-    status: 'connected'
+  // This route is primarily for informational purposes, indicating the presence
+  // of an external Socket.IO server. The actual Socket.IO connection happens
+  // directly from the client to the SOCKET_PORT.
+  return NextResponse.json({
+    message: 'External Socket.IO server is expected to be running',
+    socketServerUrl: process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001",
+    status: 'info'
   })
 }
 
-// Handle POST requests for Socket.IO
 export async function POST(request: NextRequest) {
+  // This route can be used for any future API interactions related to the socket
+  // server that don't involve direct Socket.IO communication.
   try {
     const body = await request.json()
-    
-    // Handle any POST requests if needed
-    return NextResponse.json({ 
-      message: 'Socket.IO POST endpoint',
+    return NextResponse.json({
+      message: 'Socket.IO API route received POST request',
       data: body
     })
   } catch (error) {
@@ -41,6 +27,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-// Export the server for use in other parts of the application
-export { server as socketServer }
