@@ -1,11 +1,13 @@
-"use client"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
-export function JoinForm() {
+export function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
   const [code, setCode] = useState("")
-  const router = useRouter()
+
+  const handleSubmit = () => {
+    if (code.trim()) {
+      onJoin(code.trim())
+    }
+  }
 
   return (
     <div className="mx-auto max-w-md rounded-lg bg-white p-8 shadow-lg">
@@ -19,7 +21,7 @@ export function JoinForm() {
           className="w-full rounded-md border border-gray-300 p-4 text-center text-lg focus:border-transparent focus:ring-2 focus:ring-blue-500"
         />
         <button
-          onClick={() => code.trim() && router.push(`/p/${code.trim()}`)}
+          onClick={handleSubmit}
           className="w-full rounded-md bg-blue-500 py-3 font-semibold text-white transition-colors hover:bg-blue-600"
         >
           Join Presentation
