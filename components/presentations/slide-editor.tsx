@@ -1,50 +1,26 @@
-"use client"
-
-import { useState } from "react"
-import { 
-  Trash2, 
-  Copy, 
-  Settings, 
-  CheckSquare, 
-  Circle, 
-  MessageSquare, 
-  Cloud, 
-  HelpCircle, 
+import { useState, useEffect } from "react"
+import {
+  Trash2,
+  Copy,
+  Settings,
+  CheckSquare,
+  Circle,
+  MessageSquare,
+  Cloud,
+  HelpCircle,
   Type,
   Plus,
   Minus,
-  ArrowUp,
-  ArrowDown
 } from "lucide-react"
-
-export type QuestionType = 'multiple_choice' | 'single_choice' | 'text' | 'word_cloud' | 'question_only'
-
-export type SlideElements = {
-  question: string
-  type: QuestionType
-  options: string[]
-  settings: {
-    allowMultiple?: boolean
-    showResults?: boolean
-    timeLimit?: number
-    maxLength?: number
-    required?: boolean
-  }
-}
-
-export type SlideRecord = {
-  id: string
-  presentation_id: string
-  position: number
-  elements: SlideElements
-}
+import { Slide } from "@/app/page"
 
 interface SlideEditorProps {
-  slide: SlideRecord
-  onUpdate: (slideId: string, updated: SlideElements) => Promise<void>
+  slide: Slide
+  onUpdate: (slideId: string, updated: Partial<Slide>) => Promise<void>
   onDelete: (slideId: string) => Promise<void>
   onDuplicate?: (slideId: string) => Promise<void>
   isActive?: boolean
+  busy?: boolean
 }
 
 export function SlideEditor({
@@ -52,15 +28,19 @@ export function SlideEditor({
   onUpdate,
   onDelete,
   onDuplicate,
-  isActive = false
+  isActive = false,
+  busy = false,
 }: SlideEditorProps) {
-  const [local, setLocal] = useState<SlideElements>(slide.elements)
-  const [isEditing, setIsEditing] = useState(false)
+  const [localSlide, setLocalSlide] = useState<Slide>(slide)
   const [showSettings, setShowSettings] = useState(false)
+
+  useEffect(() => {
+    setLocalSlide(slide)
+  }, [slide])
 
   const questionTypes = [
     {
-      type: 'multiple_choice' as QuestionType,
+      type: 'multiple_choice' as Slide['type'],
       label: 'Multiple Choice',
       icon: CheckSquare,
       color: 'text-blue-600',
@@ -69,7 +49,7 @@ export function SlideEditor({
       description: 'Select multiple options'
     },
     {
-      type: 'single_choice' as QuestionType,
+      type: 'single_choice' as Slide['type'],
       label: 'Single Choice',
       icon: Circle,
       color: 'text-green-600',
@@ -78,7 +58,7 @@ export function SlideEditor({
       description: 'Select one option'
     },
     {
-      type: 'text' as QuestionType,
+      type: 'text' as Slide['type'],
       label: 'Text Response',
       icon: MessageSquare,
       color: 'text-purple-600',
@@ -87,7 +67,7 @@ export function SlideEditor({
       description: 'Free text answers'
     },
     {
-      type: 'word_cloud' as QuestionType,
+      type: 'word_cloud' as Slide['type'],
       label: 'Word Cloud',
       icon: Cloud,
       color: 'text-orange-600',
@@ -96,7 +76,7 @@ export function SlideEditor({
       description: 'Word frequency visualization'
     },
     {
-      type: 'question_only' as QuestionType,
+      type: 'question_only' as Slide['type'],
       label: 'Question Only',
       icon: HelpCircle,
       color: 'text-gray-600',
@@ -106,34 +86,32 @@ export function SlideEditor({
     }
   ]
 
-  const currentType = questionTypes.find(t => t.type === local.type) || questionTypes[0]
+  const currentType = questionTypes.find(t => t.type === localSlide.type) || questionTypes[0]
 
-  const handleUpdate = async () => {
-    await onUpdate(slide.id, local)
-    setIsEditing(false)
+  const handleUpdate = async (updates: Partial<Slide>) => {
+    const updatedSlide = { ...localSlide, ...updates }
+    setLocalSlide(updatedSlide)
+    await onUpdate(slide.id, updatedSlide)
   }
 
   const addOption = () => {
-    setLocal(prev => ({
-      ...prev,
-      options: [...prev.options, `Option ${prev.options.length + 1}`]
-    }))
+    handleUpdate({
+      options: [...localSlide.options, `Option ${localSlide.options.length + 1}`]
+    })
   }
 
   const removeOption = (index: number) => {
-    if (local.options.length > 1) {
-      setLocal(prev => ({
-        ...prev,
-        options: prev.options.filter((_, i) => i !== index)
-      }))
+    if (localSlide.options.length > 1) {
+      handleUpdate({
+        options: localSlide.options.filter((_, i) => i !== index)
+      })
     }
   }
 
   const updateOption = (index: number, value: string) => {
-    setLocal(prev => ({
-      ...prev,
-      options: prev.options.map((opt, i) => i === index ? value : opt)
-    }))
+    handleUpdate({
+      options: localSlide.options.map((opt, i) => i === index ? value : opt)
+    })
   }
 
   const renderQuestionTypeSelector = () => (
@@ -142,16 +120,17 @@ export function SlideEditor({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {questionTypes.map((type) => {
           const Icon = type.icon
-          const isSelected = local.type === type.type
+          const isSelected = localSlide.type === type.type
           return (
             <button
               key={type.type}
-              onClick={() => setLocal(prev => ({ ...prev, type: type.type }))}
+              onClick={() => handleUpdate({ type: type.type, options: type.type === 'text' || type.type === 'word_cloud' || type.type === 'question_only' ? [] : ["Option 1", "Option 2"] })}
               className={`p-4 rounded-lg border-2 transition-all ${
                 isSelected
                   ? `${type.bgColor} ${type.borderColor} border-2`
                   : 'bg-white border-gray-200 hover:border-gray-300'
               }`}
+              disabled={busy}
             >
               <div className="flex items-center gap-3">
                 <Icon className={`h-5 w-5 ${type.color}`} />
@@ -170,7 +149,7 @@ export function SlideEditor({
   )
 
   const renderOptionsEditor = () => {
-    if (local.type === 'text' || local.type === 'word_cloud' || local.type === 'question_only') {
+    if (localSlide.type === 'text' || localSlide.type === 'word_cloud' || localSlide.type === 'question_only') {
       return null
     }
 
@@ -178,19 +157,20 @@ export function SlideEditor({
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <label className="block text-sm font-medium text-gray-700">
-            Options {local.type === 'multiple_choice' && '(Select multiple)'}
+            Options {localSlide.type === 'multiple_choice' && '(Select multiple)'}
           </label>
           <button
             onClick={addOption}
-            className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+            disabled={busy}
           >
             <Plus size={14} />
             Add Option
           </button>
         </div>
-        
+
         <div className="space-y-2">
-          {local.options.map((option, idx) => (
+          {localSlide.options.map((option, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <input
                 type="text"
@@ -198,11 +178,13 @@ export function SlideEditor({
                 onChange={(e) => updateOption(idx, e.target.value)}
                 className="flex-1 rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 placeholder={`Option ${idx + 1}`}
+                disabled={busy}
               />
-              {local.options.length > 1 && (
+              {localSlide.options.length > 1 && (
                 <button
                   onClick={() => removeOption(idx)}
                   className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                  disabled={busy}
                 >
                   <Minus size={14} />
                 </button>
@@ -221,88 +203,89 @@ export function SlideEditor({
         <button
           onClick={() => setShowSettings(!showSettings)}
           className="flex items-center gap-1 px-2 py-1 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded transition-colors"
+          disabled={busy}
         >
           <Settings size={14} />
           {showSettings ? 'Hide' : 'Show'} Settings
         </button>
       </div>
-      
+
       {showSettings && (
         <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-          {local.type === 'multiple_choice' && (
+          {localSlide.type === 'multiple_choice' && (
             <div className="flex items-center">
               <input
                 type="checkbox"
-                checked={local.settings.allowMultiple || false}
-                onChange={(e) => setLocal(prev => ({
-                  ...prev,
-                  settings: { ...prev.settings, allowMultiple: e.target.checked }
-                }))}
+                checked={localSlide.settings.allowMultiple || false}
+                onChange={(e) => handleUpdate({
+                  settings: { ...localSlide.settings, allowMultiple: e.target.checked }
+                })}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                disabled={busy}
               />
               <span className="ml-2 text-sm text-gray-700">Allow multiple selections</span>
             </div>
           )}
-          
+
           <div className="flex items-center">
             <input
               type="checkbox"
-              checked={local.settings.showResults || false}
-              onChange={(e) => setLocal(prev => ({
-                ...prev,
-                settings: { ...prev.settings, showResults: e.target.checked }
-              }))}
+              checked={localSlide.settings.showResults || false}
+              onChange={(e) => handleUpdate({
+                settings: { ...localSlide.settings, showResults: e.target.checked }
+              })}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              disabled={busy}
             />
             <span className="ml-2 text-sm text-gray-700">Show results to participants</span>
           </div>
-          
+
           <div className="flex items-center">
             <input
               type="checkbox"
-              checked={local.settings.required || false}
-              onChange={(e) => setLocal(prev => ({
-                ...prev,
-                settings: { ...prev.settings, required: e.target.checked }
-              }))}
+              checked={localSlide.settings.required || false}
+              onChange={(e) => handleUpdate({
+                settings: { ...localSlide.settings, required: e.target.checked }
+              })}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              disabled={busy}
             />
             <span className="ml-2 text-sm text-gray-700">Required response</span>
           </div>
-          
-          {(local.type === 'text' || local.type === 'word_cloud') && (
+
+          {(localSlide.type === 'text' || localSlide.type === 'word_cloud') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Max Length
               </label>
               <input
                 type="number"
-                value={local.settings.maxLength || ''}
-                onChange={(e) => setLocal(prev => ({
-                  ...prev,
-                  settings: { ...prev.settings, maxLength: parseInt(e.target.value) || undefined }
-                }))}
+                value={localSlide.settings.maxLength || ''}
+                onChange={(e) => handleUpdate({
+                  settings: { ...localSlide.settings, maxLength: parseInt(e.target.value) || undefined }
+                })}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 placeholder="No limit"
                 min="0"
+                disabled={busy}
               />
             </div>
           )}
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Time Limit (seconds)
             </label>
             <input
               type="number"
-              value={local.settings.timeLimit || ''}
-              onChange={(e) => setLocal(prev => ({
-                ...prev,
-                settings: { ...prev.settings, timeLimit: parseInt(e.target.value) || undefined }
-              }))}
+              value={localSlide.settings.timeLimit || ''}
+              onChange={(e) => handleUpdate({
+                settings: { ...localSlide.settings, timeLimit: parseInt(e.target.value) || undefined }
+              })}
               className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               placeholder="No limit"
               min="0"
+              disabled={busy}
             />
           </div>
         </div>
@@ -312,8 +295,8 @@ export function SlideEditor({
 
   return (
     <div className={`mb-6 rounded-lg border-2 p-6 transition-all ${
-      isActive 
-        ? 'border-blue-500 bg-blue-50' 
+      isActive
+        ? 'border-blue-500 bg-blue-50'
         : 'border-gray-200 bg-white hover:border-gray-300'
     }`}>
       {/* Header */}
@@ -324,18 +307,19 @@ export function SlideEditor({
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
-              Slide {slide.position + 1}
+              Slide {slide.order + 1}
             </h3>
             <p className="text-sm text-gray-500">{currentType.label}</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-1">
           {onDuplicate && (
             <button
               onClick={() => onDuplicate(slide.id)}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
               title="Duplicate slide"
+              disabled={busy}
             >
               <Copy size={16} />
             </button>
@@ -344,6 +328,7 @@ export function SlideEditor({
             onClick={() => onDelete(slide.id)}
             className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
             title="Delete slide"
+            disabled={busy}
           >
             <Trash2 size={16} />
           </button>
@@ -357,11 +342,12 @@ export function SlideEditor({
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">Question</label>
         <textarea
-          value={local.question}
-          onChange={(e) => setLocal(prev => ({ ...prev, question: e.target.value }))}
+          value={localSlide.question}
+          onChange={(e) => handleUpdate({ question: e.target.value })}
           className="w-full rounded-md border border-gray-300 p-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
           placeholder="Enter your question..."
           rows={3}
+          disabled={busy}
         />
       </div>
 
@@ -370,22 +356,6 @@ export function SlideEditor({
 
       {/* Settings */}
       {renderSettings()}
-
-      {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-200">
-        <button
-          onClick={() => setIsEditing(false)}
-          className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleUpdate}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          Save Changes
-        </button>
-      </div>
     </div>
   )
 }
