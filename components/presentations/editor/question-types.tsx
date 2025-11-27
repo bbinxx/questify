@@ -13,7 +13,6 @@ export function QuestionTypes({ onAddSlide, busy = false }: QuestionTypesProps) 
     { id: "single_choice", name: "Single Choice" },
     { id: "text", name: "Text" },
     { id: "word_cloud", name: "Word Cloud" },
-    { id: "guess_number", name: "Guess Number" },
     { id: "question_only", name: "Question Only" },
   ]
 
