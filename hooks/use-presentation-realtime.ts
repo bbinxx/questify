@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect } from "react"
-import { getBrowserSupabase } from "@/lib/supabase/client"
+import { app } from "@/lib/firebase/client"
+import { getDatabase, ref, onValue, off } from "firebase/database"; // For broadcast
+import { getFirestore, doc, onSnapshot, query, collection, where } from "firebase/firestore"; // For postgres_changes equivalent
 
 type UseRealtimeOpts = {
   presentationId: string
@@ -22,39 +24,62 @@ export function usePresentationRealtime({
 }: UseRealtimeOpts) {
   useEffect(() => {
     if (!presentationId) return
-    const supabase = getBrowserSupabase()
 
-    const dbChannel = supabase
-      .channel(`realtime:presentations:${presentationId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "presentations", filter: `id=eq.${presentationId}` },
-        (payload) => {
-          onPresentationUpdate?.(payload)
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "responses", filter: `presentation_id=eq.${presentationId}` },
-        (payload) => {
-          if (!slideId || payload.new.slide_id === slideId) onResponse?.(payload)
-        },
-      )
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "slides" }, (payload) => {
-        if ((payload.new as any).presentation_id === presentationId) onSlideChange?.(payload)
-      })
-      .subscribe()
+    // Firebase Realtime Database for control broadcasts
+    const db = getDatabase(app);
+    const controlRef = ref(db, `presentations/${presentationId}/control`);
+    const unsubscribeControl = onValue(controlRef, (snapshot) => {
+      const payload = snapshot.val();
+      if (payload) {
+        onControl?.(payload) || onPresentationUpdate?.(payload);
+      }
+    });
 
-    const controlChannel = supabase
-      .channel(`control:presentations:${presentationId}`, { config: { broadcast: { ack: true } } })
-      .on("broadcast", { event: "control" }, (payload) => {
-        onControl?.(payload) || onPresentationUpdate?.(payload)
-      })
-      .subscribe()
+    // Firestore for database changes (equivalent to postgres_changes)
+    const firestore = getFirestore(app);
+
+    // Presentation updates
+    const presentationDocRef = doc(firestore, "presentations", presentationId);
+    const unsubscribePresentation = onSnapshot(presentationDocRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        onPresentationUpdate?.({ new: docSnapshot.data() });
+      }
+    });
+
+    // Responses
+    const responsesQuery = query(
+      collection(firestore, "responses"),
+      where("presentation_id", "==", presentationId)
+    );
+    const unsubscribeResponses = onSnapshot(responsesQuery, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          if (!slideId || change.doc.data().slide_id === slideId) {
+            onResponse?.({ new: change.doc.data() });
+          }
+        }
+      });
+    });
+
+    // Slides updates
+    const slidesQuery = query(
+      collection(firestore, "slides"),
+      where("presentation_id", "==", presentationId)
+    );
+    const unsubscribeSlides = onSnapshot(slidesQuery, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "modified") {
+          onSlideChange?.({ new: change.doc.data() });
+        }
+      });
+    });
 
     return () => {
-      supabase.removeChannel(dbChannel)
-      supabase.removeChannel(controlChannel)
+      // Unsubscribe from Firebase listeners
+      off(controlRef, 'value', unsubscribeControl); // Unsubscribe from Realtime Database
+      unsubscribePresentation(); // Unsubscribe from Firestore presentation updates
+      unsubscribeResponses(); // Unsubscribe from Firestore responses
+      unsubscribeSlides(); // Unsubscribe from Firestore slides
     }
   }, [presentationId, slideId, onPresentationUpdate, onResponse, onSlideChange, onControl])
 }
