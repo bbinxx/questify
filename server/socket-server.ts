@@ -239,7 +239,7 @@ io.on('connection', async (socket) => {
           slide_id: data.slideId,
           response_data: data.response,
           user_name: data.userName || session.userName,
-          socket_id: socket.id
+          session_id: socket.id
         })
 
       if (responseError) {
