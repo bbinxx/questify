@@ -1,306 +1,58 @@
 "use client"
 
-import useSWR from "swr"
-import Link from "next/link"
-import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Users, BarChart3, Plus, Pencil, Play } from "lucide-react"
-import { SlideEditor, type SlideRecord, type SlideElements } from "@/components/presentations/slide-editor"
-import { ResultChart } from "@/components/presentations/result-chart"
-import { usePresentationRealtime } from "@/hooks/use-presentation-realtime"
-import { useParams } from "next/navigation"
-import { getBrowserSupabase } from "@/lib/supabase/client" // import for broadcast
-
-type Presentation = {
-  id: string
-  title: string
-  code: string
-  current_slide: number
-  show_results: boolean
-}
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { AdminPresentationView } from '@/components/presentations/admin-presentation-view'
+import { Presentation } from '@/app/page'
 
 export default function AdminEditorPage() {
   const params = useParams<{ id: string }>()
-  const id = params.id
+  const presentationId = params.id
+  const router = useRouter()
+  const supabase = createClient()
 
-  const { data, mutate } = useSWR<{ presentation: Presentation; slides: SlideRecord[] }>(
-    id ? `/api/presentations/${id}` : null,
-    fetcher,
-  )
+  const [presentation, setPresentation] = useState<Presentation | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const [busy, setBusy] = useState(false)
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState("")
+  useEffect(() => {
+    const fetchPresentation = async () => {
+      setLoading(true)
+      setError(null)
+      const { data, error } = await supabase
+        .from('presentations')
+        .select('*, slides(*)')
+        .eq('id', presentationId)
+        .single()
 
-  usePresentationRealtime({
-    presentationId: id,
-    onPresentationUpdate: () => mutate(),
-    onResponse: () => mutate(), // refresh counts when results visible
-    onSlideChange: () => mutate(),
-    onControl: () => mutate(), // react to broadcast
-  })
-
-  const presentation = data?.presentation
-  const slides = useMemo(() => (data?.slides ?? []).sort((a, b) => a.position - b.position), [data?.slides])
-
-  const currentSlide = presentation && slides[presentation.current_slide]
-
-  const broadcastControl = (nextState: { current_slide: number; show_results: boolean }) => {
-    try {
-      const supabase = getBrowserSupabase()
-      supabase.channel(`control:presentations:${id}`).send({
-        type: "broadcast",
-        event: "control",
-        payload: nextState,
-      })
-    } catch {}
-  }
-
-  const updatePresentation = async (payload: Partial<Presentation>) => {
-    if (!presentation) return
-    setBusy(true)
-    await fetch(`/api/presentations/${id}`, { method: "PATCH", body: JSON.stringify(payload) })
-    setBusy(false)
-    const nextState = {
-      current_slide: payload.current_slide ?? presentation.current_slide,
-      show_results: payload.show_results ?? presentation.show_results,
+      if (error) {
+        console.error('Error fetching presentation:', error)
+        setError(error.message)
+      } else if (data) {
+        setPresentation({
+          ...data,
+          slides: data.slides || [],
+          current_slide_index: data.current_slide_index || 0,
+        } as Presentation)
+      }
+      setLoading(false)
     }
-    broadcastControl(nextState)
-    mutate()
-  }
 
-  const addSlide = async () => {
-    setBusy(true)
-    await fetch(`/api/slides`, {
-      method: "POST",
-      body: JSON.stringify({
-        presentation_id: id,
-        position: slides.length,
-        elements: { question: "New Question?", options: ["Option 1", "Option 2", "Option 3", "Option 4"] },
-      }),
-    })
-    setBusy(false)
-    mutate()
-  }
-
-  const updateSlide = async (slideId: string, elements: SlideElements) => {
-    await fetch(`/api/slides/${slideId}`, { method: "PATCH", body: JSON.stringify({ elements }) })
-    mutate()
-  }
-
-  const deleteSlide = async (slideId: string) => {
-    await fetch(`/api/slides/${slideId}`, { method: "DELETE" })
-    mutate()
-  }
-
-  const goPrev = () => {
-    if (!presentation) return
-    if (presentation.show_results) {
-      updatePresentation({ show_results: false })
-    } else {
-      updatePresentation({ current_slide: Math.max(0, presentation.current_slide - 1), show_results: false })
+    if (presentationId) {
+      fetchPresentation()
     }
+  }, [presentationId, supabase])
+
+  const handleBack = () => {
+    router.push('/admin')
   }
 
-  const goNext = (totalSlides: number) => {
-    if (!presentation) return
-    if (presentation.show_results) {
-      updatePresentation({
-        current_slide: Math.min(totalSlides - 1, presentation.current_slide + 1),
-        show_results: false,
-      })
-    } else {
-      updatePresentation({ show_results: true })
-    }
-  }
-
-  const toggleResults = () => {
-    if (!presentation) return
-    updatePresentation({ show_results: !presentation.show_results })
-  }
-
-  const jumpTo = (idx: number) => {
-    if (!presentation) return
-    updatePresentation({ current_slide: idx, show_results: false })
-  }
-
-  if (!presentation) return <div className="p-8">Loading…</div>
+  if (loading) return <div className="p-8">Loading presentation...</div>
+  if (error) return <div className="p-8 text-red-500">Error loading presentation: {error}</div>
+  if (!presentation) return <div className="p-8">No presentation found.</div>
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {isEditingTitle ? (
-              <input
-                value={titleDraft}
-                onChange={(e) => setTitleDraft(e.target.value)}
-                onBlur={() => {
-                  if (titleDraft.trim() && titleDraft !== presentation.title) {
-                    updatePresentation({ title: titleDraft.trim() })
-                  }
-                  setIsEditingTitle(false)
-                }}
-                autoFocus
-                className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 text-2xl font-bold focus:border-transparent focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <h1 className="text-3xl font-bold text-gray-800">{presentation.title}</h1>
-            )}
-            {!isEditingTitle && (
-              <button
-                onClick={() => {
-                  setTitleDraft(presentation.title)
-                  setIsEditingTitle(true)
-                }}
-                className="rounded bg-amber-100 p-2 text-amber-800 hover:bg-amber-200"
-                aria-label="Rename presentation"
-              >
-                <Pencil size={16} />
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-600">
-              Code: <code className="rounded bg-gray-200 px-2 py-1">{presentation.code}</code>
-            </span>
-            <Link
-              href={`/admin/${presentation.id}/present`}
-              className="flex items-center gap-2 rounded-md bg-gray-800 px-3 py-2 text-white hover:bg-black"
-            >
-              <Play size={16} />
-              Present
-            </Link>
-            <Link href="/admin" className="text-gray-600 hover:text-gray-800">
-              ← Back
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* Left Panel - Slide Editor */}
-          <div>
-            <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-xl font-semibold">Slide Editor</h2>
-              <div className="max-h-96 overflow-y-auto">
-                {slides.map((slide) => (
-                  <SlideEditor key={slide.id} slide={slide} onUpdate={updateSlide} onDelete={deleteSlide} />
-                ))}
-              </div>
-              <button
-                onClick={addSlide}
-                disabled={busy}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-green-500 py-2 text-white transition-colors hover:bg-green-600 disabled:opacity-50"
-              >
-                <Plus size={16} />
-                Add Slide
-              </button>
-            </div>
-          </div>
-
-          {/* Right Panel - Preview & Controls */}
-          <div>
-            <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Presentation Control</h2>
-                <div className="flex items-center gap-2">
-                  <Users size={16} className="text-gray-600" />
-                  <span className="text-gray-600">Live</span>
-                </div>
-              </div>
-
-              <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  onClick={goPrev}
-                  disabled={busy || (presentation.current_slide === 0 && !presentation.show_results)}
-                  className="rounded-md bg-gray-500 px-3 py-2 text-white transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Previous"
-                >
-                  <div className="flex items-center gap-2">
-                    <ChevronLeft size={18} />
-                    <span>Previous</span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={toggleResults}
-                  disabled={busy}
-                  className={`rounded-md px-3 py-2 text-white transition-colors ${presentation.show_results ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-500 hover:bg-blue-600"}`}
-                  aria-label="Toggle results"
-                >
-                  <div className="flex items-center gap-2">
-                    <BarChart3 size={18} />
-                    <span>{presentation.show_results ? "Hide Results" : "Show Results"}</span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => goNext(slides.length)}
-                  disabled={busy || (presentation.current_slide === slides.length - 1 && presentation.show_results)}
-                  className="rounded-md bg-gray-700 px-3 py-2 text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Next"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>Next</span>
-                    <ChevronRight size={18} />
-                  </div>
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-700">Jump to</label>
-                  <select
-                    value={presentation.current_slide}
-                    onChange={(e) => jumpTo(Number(e.target.value))}
-                    className="rounded-md border border-gray-300 px-2 py-1"
-                  >
-                    {slides.map((s, idx) => (
-                      <option key={s.id} value={idx}>
-                        Slide {idx + 1}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="min-h-96 rounded-lg border-2 border-gray-200 bg-gray-50 p-6">
-                {currentSlide ? (
-                  presentation.show_results ? (
-                    <ResultsBlock presentationId={presentation.id} slide={currentSlide} />
-                  ) : (
-                    <div className="space-y-6 text-center">
-                      <h2 className="text-2xl font-bold">{currentSlide.elements.question}</h2>
-                      <div className="grid grid-cols-2 gap-4">
-                        {currentSlide.elements.options.map((opt, i) => (
-                          <button key={i} className="rounded-lg border-2 border-gray-300 bg-white p-4">
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                ) : (
-                  <div className="text-center text-gray-500">No slide</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ResultsBlock({ presentationId, slide }: { presentationId: string; slide: SlideRecord }) {
-  const { data } = useSWR<{ counts: number[] }>(
-    `/api/responses?presentation_id=${presentationId}&slide_id=${slide.id}&options=${slide.elements.options.length}`,
-    (u) => fetch(u).then((r) => r.json()),
-  )
-  return (
-    <ResultChart
-      question={slide.elements.question}
-      options={slide.elements.options}
-      counts={data?.counts ?? Array(slide.elements.options.length).fill(0)}
-    />
+    <AdminPresentationView initialPresentation={presentation} onBack={handleBack} />
   )
 }

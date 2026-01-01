@@ -1,16 +1,44 @@
 {
   "name": "Questify - Interactive Presentations",
   "short_name": "Questify",
-  "description": "Create and manage interactive presentations with real-time audience engagement",
+  "description": "Create and manage interactive presentations with real-time audience engagement like Mentimeter",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "theme_color": "#3b82f6",
   "orientation": "portrait-primary",
-  "categories": ["productivity", "education"],
+  "categories": ["productivity", "education", "business"],
   "lang": "en-US",
   "dir": "ltr",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {
+      "name": "Create Presentation",
+      "short_name": "Create",
+      "description": "Create a new interactive presentation",
+      "url": "/create",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Join Presentation",
+      "short_name": "Join",
+      "description": "Join an existing presentation",
+      "url": "/join",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-72x72.png",
@@ -59,6 +87,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Questify Desktop Interface"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Questify Mobile Interface"
     }
   ]
 }

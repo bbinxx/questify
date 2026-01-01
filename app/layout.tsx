@@ -6,6 +6,7 @@ import MobileInstallPrompt from '@/components/MobileInstallPrompt'
 import './globals.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'), // Added metadataBase
   title: 'Questify - Interactive Presentations',
   description: 'Create and manage interactive presentations with real-time audience engagement',
   generator: 'Next.js',
