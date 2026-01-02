@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/client'
 
 export interface SocketSession {
   id: string
@@ -76,6 +76,7 @@ export interface SocketEventHandlers {
     votes: VoteData[]
     slideType?: string
   }) => void
+  onSaveComplete?: (data: { count: number }) => void
   onError?: (data: { message: string }) => void
 }
 
@@ -85,7 +86,7 @@ export const useSocket = (handlers?: SocketEventHandlers) => {
   const socketRef = useRef<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [userId, setUserId] = useState<string | undefined>(undefined)
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
     const getUserId = async () => {
@@ -120,8 +121,9 @@ export const useSocket = (handlers?: SocketEventHandlers) => {
         if (Object.prototype.hasOwnProperty.call(handlers, event)) {
           const handler = (handlers as any)[event]
           if (typeof handler === 'function') {
-            // Remove 'on' prefix from event name
-            const eventName = event.replace(/^on/, '').toLowerCase()
+            // Remove 'on' prefix and convert camelCase to kebab-case (e.g. onRoomJoined -> room-joined)
+            const name = event.replace(/^on/, '')
+            const eventName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
             socket.on(eventName, handler)
           }
         }
