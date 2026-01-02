@@ -1,342 +1,343 @@
-# Questify - Interactive Presentations
+# Quest ify - Interactive Presentations Platform
 
-A modern, real-time interactive presentation platform built with Next.js, Socket.IO, and Supabase. Create engaging presentations with live audience participation, similar to Mentimeter.
+**Version 2.0.0** | Modern, real-time interactive presentation platform | Built with Next.js 14, Supabase & Socket.IO
 
-## 🚀 **Features**
+> Create engaging presentations with live polls, Q&A, quizzes, and word clouds. A powerful Mentimeter alternative.
 
-### **Interactive Question Types**
-- **Multiple Choice**: Select multiple options with real-time voting
-- **Single Choice**: Select one option with instant results
-- **Text Response**: Free-form text input for open-ended questions
-- **Word Cloud**: Enter words separated by spaces for frequency visualization
-- **Question Only**: Display questions for discussion without responses
+---
 
-### **Real-time Functionality**
-- **Live Voting**: Real-time vote counting and visualization
-- **Bar Charts**: Dynamic vote distribution charts
-- **Word Clouds**: Words grow/shrink based on frequency
-- **Live Participants**: See who's in the presentation
-- **Instant Results**: Show/hide results in real-time
+## ✨ Features
 
-### **Presentation Management**
-- **Slide Builder**: Drag-and-drop slide creation
-- **Question Type Selection**: Easy switching between question types
-- **Slide Reordering**: Move slides up/down
-- **Slide Duplication**: Copy existing slides
-- **Settings Panel**: Configure presentation options
+### 📊 Interactive Question Types
+- **Multiple Choice** - Select multiple options with real-time voting
+- **Single Choice** - Select one option with instant results
+- **Word Cloud** - Word frequency visualization
+- **Text Response** - Free-form text input
+- **Rating Scale** - Stars, emoji, numeric ratings ⭐
+- **Ranking** - Drag-and-drop ranking 🆕
+- **Q&A** - Live questions with upvoting 🆕
+- **Quiz Mode** - Points, timers, leaderboards 🆕
+- **Pin on Image** - Click heatmaps 🆕
+- **2x2 Grid** - Quadrant analysis 🆕
 
-### **PWA Support**
-- **Installable App**: Works on all devices
-- **Offline Support**: Basic functionality without internet
-- **App Shortcuts**: Quick access to common actions
-- **Responsive Design**: Optimized for mobile and desktop
+### ⚡ Real-time Features
+- Live vote counting
+- Instant result visualization
+- Participant tracking
+- Socket.IO powered updates
+- Room-based isolation
 
-## 🏗️ **Architecture**
+### 🎨 Beautiful UI/UX
+- Modern, gradient-based des ign
+- Responsive (mobile/desktop)
+- Smooth animations
+- Loading & error states
+- Accessibility (ARIA labels)
 
-### **Frontend**
-- **Next.js 14**: React framework with App Router
-- **TypeScript**: Type-safe development
-- **Tailwind CSS**: Utility-first styling
-- **Socket.IO Client**: Real-time communication
-- **PWA**: Progressive Web App capabilities
+---
 
-### **Backend**
-- **Socket.IO Server**: Real-time event handling
-- **Express.js**: HTTP server framework
-- **Supabase**: Database and authentication
-- **PostgreSQL**: Relational database
+## 🏗️ Tech Stack
 
-### **Real-time Features**
-- **Room Management**: Unique room codes for presentations
-- **Session Tracking**: User activity and connection status
-- **Event Logging**: Comprehensive audit trail
-- **Error Handling**: Robust error recovery
+**Frontend:**
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS + shadcn/ui
+- Socket.IO Client
+- PWA Support
 
-## ⚙️ **Setup Instructions**
+**Backend:**
+- Supabase (PostgreSQL)
+- Socket.IO Server
+- Row Level Security (RLS)
+- Real-time subscriptions
 
-### **1. Prerequisites**
-- Node.js 18+ 
-- npm or pnpm
-- Supabase account
+**Architecture:**
+- Data-driven design (centralized config)
+- Comprehensive error handling
+- Connection verification
+- Retry logic
+- Type-safe throughout
 
-### **2. Clone and Install**
+---
+
+## 🚀 Quick Start
+
+### 1. Prerequisites
+```bash
+Node.js 18+
+npm or pnpm
+Supabase account
+```
+
+### 2. Install Dependencies
 ```bash
 git clone <repository-url>
 cd questify
 npm install
 ```
 
-### **3. Environment Variables**
+### 3. Environment Setup
 Create `.env.local`:
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
+# Supabase (Required)
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DATABASE_URL=postgresql://postgres:password@db.xxx.supabase.co:5432/postgres
 
 # Socket.IO
 SOCKET_PORT=3001
 NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
 
-# Debug
+# Environment
 NODE_ENV=development
-DEBUG=socket.io:*
 ```
 
-### **4. Database Setup**
-Run the SQL scripts in your Supabase SQL editor:
-```sql
--- Execute scripts/004_socket_sessions.sql
-```
-
-### **5. Start Development Servers**
+### 4. Database Migration (CRITICAL!)
+Run in Supabase SQL Editor:
 ```bash
-# Terminal 1: Socket.IO Server
+# Open: https://supabase.com/dashboard
+# SQL Editor → New Query
+# Paste: migrations/001_mentimeter_enhanced_schema.sql
+# Click: Run
+```
+
+This creates:
+- 7 new tables (Q&A, analytics, themes, etc.)
+- 7 database functions
+- 20+ RLS policies
+- 15+ performance indexes
+
+### 5. Start Servers
+```bash
+# Terminal 1: Socket.IO
 npm run socket:dev
 
-# Terminal 2: Next.js App
+# Terminal 2: Next.js
 npm run dev
+
+# Or both:
+npm run dev:full
 ```
 
-### **6. Build for Production**
-```bash
-# Build Socket.IO server
-npm run socket:build
+**App runs at:** http://localhost:3000
 
-# Build Next.js app
-npm run build
+---
 
-# Start production servers
-npm run socket:start
-npm start
-```
+## 📁 Project Structure
 
-## 🎯 **Usage**
-
-### **Creating a Presentation**
-
-1. **Access the Builder**
-   - Navigate to the presentation builder
-   - Click "Add New Slide" to create slides
-
-2. **Choose Question Type**
-   - Select from 5 question types
-   - Configure options and settings
-   - Preview the slide
-
-3. **Configure Settings**
-   - Allow anonymous participation
-   - Set time limits
-   - Configure result visibility
-
-4. **Start Presentation**
-   - Click "Start Presentation"
-   - Share the room code with participants
-
-### **Participant Experience**
-
-1. **Join Presentation**
-   - Enter the room code
-   - Provide your name (optional)
-
-2. **Respond to Questions**
-   - See questions in real-time
-   - Submit responses instantly
-   - View live results (if enabled)
-
-3. **Real-time Updates**
-   - See participant count
-   - View live vote updates
-   - Get instant feedback
-
-### **Presenter Controls**
-
-1. **Slide Navigation**
-   - Next/Previous slides
-   - Jump to specific slides
-   - Control presentation flow
-
-2. **Result Management**
-   - Show/hide results
-   - Control result visibility
-   - Manage participant responses
-
-3. **Live Monitoring**
-   - View participant count
-   - Monitor response rates
-   - Track engagement
-
-## 📱 **PWA Features**
-
-### **Installation**
-- **Desktop**: Click install button in browser
-- **Mobile**: Add to home screen from browser menu
-- **Automatic**: Browser prompts for installation
-
-### **Offline Capabilities**
-- **Basic Navigation**: Browse cached pages
-- **Presentation View**: View existing presentations
-- **Limited Functionality**: No real-time features offline
-
-### **App Shortcuts**
-- **Create Presentation**: Quick access to builder
-- **Join Presentation**: Direct to join form
-- **Recent Presentations**: Access recent items
-
-## 🔧 **Development**
-
-### **Project Structure**
 ```
 questify/
-├── app/                    # Next.js App Router
-├── components/            # React components
-│   └── presentations/     # Presentation components
-├── hooks/                 # Custom React hooks
-├── lib/                   # Utility libraries
-├── server/                # Socket.IO server
-├── scripts/               # Database scripts
-└── public/                # Static assets
+├── app/                          # Next.js routes
+│   ├── page.tsx                  # Landing page
+│   ├── admin/                    # Dashboard routes
+│   │   ├── page.tsx              # Presentation list
+│   │   └── [id]/                 # Presentation editor
+│   │       ├── page.tsx          # Edit view
+│   │       ├── present/          # Presenter mode
+│   │       └── analytics/        # Analytics dashboard
+│   └── p/[code]/                 # Participant join
+│       └── page.tsx
+│
+├── components/                   # React components
+│   └── presentations/
+│       ├── join-form.tsx         # Join by code
+│       ├── presentation-list.tsx # Dashboard grid
+│       ├── admin-presentation-view.tsx
+│       ├── participant-presentation-view.tsx
+│       └── slides/               # Question types
+│           ├── scale-slide.tsx
+│           ├── qa-slide.tsx
+│           └── quiz-slide.tsx
+│
+├── lib/                          # Core utilities
+│   ├── config/
+│   │   └── app-config.ts         # Central configuration
+│   ├── utils/
+│   │   ├── error-handler.ts      # Error handling
+│   │   └── db-connection.ts      # DB verification
+│   ├── supabase/
+│   │   ├── client.ts             # Browser client
+│   │   ├── server.ts             # Server client
+│   │   └── custom-auth.ts        # Auth helpers
+│   ├── types/
+│   │   └── database.ts           # TypeScript types
+│   ├── database-helpers.ts       # DB operations
+│   └── db.ts                     # Postgres client
+│
+├── migrations/                   # Database schemas
+│   ├── 001_mentimeter_enhanced_schema.sql
+│   └── README.md
+│
+└── lib/socket/                   # Socket.IO server
+    └── server.ts
 ```
 
-### **Key Components**
+---
 
-#### **SlideEditor**
-- Question type selection
-- Option management
-- Settings configuration
-- Real-time preview
+## 🗄️ Database Schema
 
-#### **PresentationBuilder**
-- Slide management
-- Presentation settings
-- Room code generation
-- Export/import functionality
+### Core Tables
+- `presentations` - Presentation metadata
+- `slides` - Question slides
+- `responses` - Participant answers
+- `presentation_rooms` - Active sessions
 
-#### **MentimeterParticipantView**
-- Clean, modern interface
-- Real-time response forms
-- Live result visualization
-- Mobile-optimized design
+### Enhanced Tables (NEW)
+- `user_profiles` - User settings
+- `presentation_themes` - Custom branding
+- `qa_questions` - Live Q&A
+- `qa_upvotes` - Question voting
+- `analytics_events` - Usage tracking
+- `presentation_collaborators` - Sharing
+- `presentation_media` - File uploads
 
-#### **Socket.IO Integration**
-- Real-time communication
-- Room management
-- Session tracking
-- Error handling
+### Key Functions
+- `get_presentation_analytics()` - Stats
+- `get_top_qa_questions()` - Top questions
+- `increment_qa_upvotes()` - Upvote handler
+- `toggle_qa_answered()` - Mark answered
 
-### **Database Schema**
+---
 
-#### **socket_sessions**
-```sql
-- id: UUID (Primary Key)
-- socket_id: TEXT (Unique)
-- user_id: UUID (References auth.users)
-- presentation_id: UUID (References presentations)
-- user_name: TEXT
-- user_role: TEXT (presenter/participant)
-- is_active: BOOLEAN
-- joined_at: TIMESTAMPTZ
-- last_activity: TIMESTAMPTZ
+## 🛠️ Configuration
+
+### App Config (`lib/config/app-config.ts`)
+
+All text, messages, and settings are centralized:
+
+```typescript
+import { APP_CONFIG, UI_TEXT, ROUTES } from '@/lib/config/app-config'
+
+// App metadata
+APP_CONFIG.name           // "Questify"
+APP_CONFIG.version        // "2.0.0"
+
+// Routes
+ROUTES.home              // "/"
+ROUTES.admin             // "/admin"
+ROUTES.join(code)        // "/p/ABC123"
+
+// UI Text
+UI_TEXT.landing.hero.title
+UI_TEXT.dashboard.empty.title
+UI_TEXT.errors.database.connection
 ```
 
-#### **presentation_rooms**
-```sql
-- id: UUID (Primary Key)
-- presentation_id: UUID (References presentations)
-- room_code: TEXT (Unique)
-- is_active: BOOLEAN
-- current_slide_index: INTEGER
-- show_results: BOOLEAN
-- presenter_socket_id: TEXT
-- participant_count: INTEGER
+### Error Handling
+
+```typescript
+import { withErrorHandling, logger } from '@/lib/utils/error-handler'
+
+// Async operations
+const { data, error } = await withErrorHandling(
+  async () => await supabase.from('presentations').select(),
+  'Failed to load presentations'
+)
+
+// Logging
+logger.info('User joined', { code })
+logger.error('Connection failed', error)
+logger.success('Saved successfully')
 ```
 
-#### **socket_events**
-```sql
-- id: UUID (Primary Key)
-- socket_id: TEXT
-- presentation_id: UUID (References presentations)
-- event_type: TEXT
-- event_data: JSONB
-- timestamp: TIMESTAMPTZ
+### Database Connection
+
+```typescript
+import { dbConnection } from '@/lib/utils/db-connection'
+
+// Verify connection
+const status = await dbConnection.verifyConnection()
+// {connected: true, latency: 45, timestamp: Date}
+
+// Health check
+const health = await dbConnection.healthCheck()
+// {overall: true, checks: {connection: true, presentations: true, ...}}
 ```
 
-## 🎨 **Question Types**
+---
 
-### **Multiple Choice**
-- Select multiple options
-- Real-time vote counting
-- Bar chart visualization
-- Configurable settings
+## 🎯 Development Workflow
 
-### **Single Choice**
-- Select one option
-- Instant results
-- Radio button interface
-- Live updates
+### 1. Making Changes
+All text/messages → `lib/config/app-config.ts`  
+Error messages → Use `UI_TEXT.errors.*`  
+New features → Update config first  
 
-### **Text Response**
-- Free-form text input
-- Character limits
-- Response collection
-- Export functionality
+### 2. Error Handling
+Always wrap async calls:
+```typescript
+const { data, error } = await withErrorHandling(asyncOperation)
+if (error) {
+  // Handle error
+}
+```
 
-### **Word Cloud**
-- Word frequency analysis
-- Dynamic visualization
-- Size-based display
-- Real-time updates
+### 3. Database Operations
+Use helpers from `lib/database-helpers.ts`:
+```typescript
+import { submitQAQuestion, getPresentationAnalytics } from '@/lib/database-helpers'
+```
 
-### **Question Only**
-- Display questions
-- Discussion prompts
-- No response collection
-- Timer support
+### 4. Testing
+```bash
+npm run build          # Production build
+npm run lint           # ESLint
+npm run type-check     # TypeScript
+```
 
-## 🔒 **Security**
+---
 
-### **Authentication**
-- Supabase Auth integration
-- User session management
-- Role-based access control
-- Secure API endpoints
+## 📊 Analytics & Metrics
 
-### **Data Protection**
-- Row Level Security (RLS)
-- Encrypted connections
-- Input validation
-- XSS protection
-
-### **Privacy**
-- Anonymous participation option
-- Data retention policies
-- GDPR compliance
-- User consent management
-
-## 📊 **Analytics**
-
-### **Real-time Metrics**
-- Participant count
+### Available Metrics
+- Total participants
 - Response rates
-- Engagement tracking
-- Session duration
+- Average response time
+- Engagement score
+- Q&A activity
+- Popular questions
 
-### **Event Logging**
-- User actions
-- System events
-- Error tracking
-- Performance monitoring
+### Accessing Analytics
+```typescript
+import { getPresentationAnalytics } from '@/lib/database-helpers'
 
-### **Export Options**
-- CSV export
-- JSON data
-- PDF reports
-- Real-time dashboards
+const analytics = await getPresentationAnalytics(presentationId)
+// Returns: {
+//   total_responses: number
+//   total_participants: number
+//   avg_response_time: number
+//   slides_data: [...]}
+// }
+```
 
-## 🚀 **Deployment**
+---
 
-### **Vercel Deployment**
+## 🔒 Security
+
+### Authentication
+-  Supabase Auth
+- Row Level Security (RLS)
+- Session validation
+- JWT tokens
+
+### Database Security
+- RLS policies on all tables
+- User-level data isolation
+- Service role for admin ops
+- Input sanitization
+
+### Best Practices
+- Environment variables for secrets
+- HTTPS in production
+- CORS configuration
+- Rate limiting (Socket.IO)
+
+---
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
 ```bash
 # Install Vercel CLI
 npm i -g vercel
@@ -345,107 +346,139 @@ npm i -g vercel
 vercel --prod
 ```
 
-### **Docker Deployment**
-```bash
-# Build image
-docker build -t questify .
+Environment variables in Vercel dashboard.
 
-# Run container
-docker run -p 3000:3000 -p 3001:3001 questify
-```
+### Other Platforms
+Works on: Netlify, Railway, Render
 
-### **Environment Variables**
-```env
-# Production
-NODE_ENV=production
-NEXT_PUBLIC_SOCKET_URL=https://your-domain.com
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-## 🛠️ **Troubleshooting**
-
-### **Common Issues**
-
-1. **Socket Connection Failed**
-   - Check Socket.IO server is running
-   - Verify environment variables
-   - Check CORS configuration
-
-2. **Database Errors**
-   - Ensure Firebase collections are correctly configured
-   - Check Firebase Security Rules
-   - Verify Firebase credentials
-
-
-3. **PWA Not Installing**
-   - Check HTTPS requirement
-   - Verify manifest.json
-   - Clear browser cache
-
-4. **Real-time Issues**
-   - Check network connectivity
-   - Verify room codes match
-   - Review server logs
-
-### **Debug Mode**
-Enable debug logging:
-```env
-DEBUG=socket.io:*
-NODE_ENV=development
-```
-
-### **Logs**
-- **Server Logs**: Socket.IO server console
-- **Client Logs**: Browser developer tools
-- **Database Logs**: Firebase console
-
-## 🤝 **Contributing**
-
-### **Development Setup**
-1. Fork the repository
-2. Create feature branch
-3. Make changes
-4. Add tests
-5. Submit pull request
-
-### **Code Standards**
-- TypeScript for type safety
-- ESLint for code quality
-- Prettier for formatting
-- Jest for testing
-
-### **Testing**
-```bash
-# Run tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# E2E tests
-npm run test:e2e
-```
-
-## 📄 **License**
-
-MIT License - see LICENSE file for details.
-
-## 🆘 **Support**
-
-- **Documentation**: [Wiki](link-to-wiki)
-- **Issues**: [GitHub Issues](link-to-issues)
-- **Discussions**: [GitHub Discussions](link-to-discussions)
-- **Email**: support@questify.com
-
-## 🙏 **Acknowledgments**
-
-- **Mentimeter**: Inspiration for interactive features
-- **Socket.IO**: Real-time communication
-- **Supabase**: Backend infrastructure
-- **Next.js**: React framework
-- **Tailwind CSS**: Styling framework
+### Socket.IO Server
+Deploy separately or use Vercel Serverless Functions.
 
 ---
 
-**Questify** - Making presentations interactive and engaging! 🎯
+## 📝 API Reference
+
+### Database Helpers
+
+```typescript
+// Q&A
+submitQAQuestion(params)
+upvoteQuestion(questionId, sessionId)
+getTopQAQuestions(slideId, limit)
+toggleQuestionAnswered(questionId)
+
+//  Responses
+submitResponse(params)
+getSlideResponses(slideId)
+
+// Presentations
+createPresentation(params)
+getPresentationByCode(code)
+updateSlide(slideId, updates)
+
+// Analytics
+getPresentationAnalytics(presentationId)
+trackAnalyticsEvent(params)
+
+// Utilities
+generateUniquePresentationCode()
+isPresentationCodeAvailable(code)
+```
+
+### Real-time Subscriptions
+
+```typescript
+// Subscribe to Q&A
+const subscription = subscribeToQAQuestions(slideId, (question) => {
+  console.log('New question:', question)
+})
+
+// Subscribe to responses
+subscribeToResponses(slideId, (response) => {
+  console.log('New response:', response)
+})
+
+// Cleanup
+subscription.unsubscribe()
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Database Connection Issues
+```typescript
+// Check credentials
+import { checkCredentials } from '@/lib/utils/db-connection'
+const { valid, missing } = checkCredentials()
+
+// Verify connection
+import { dbConnection } from '@/lib/utils/db-connection'
+const status = await dbConnection.verifyWithRetry(3)
+```
+
+### Common Errors
+
+**"Cannot connect to database"**
+- Check `.env.local` has correct Supabase URL and keys
+- Verify database migration ran successfully
+- Check Supabase project is active
+
+**"Table does not exist"**
+- Run database migration: `migrations/001_*.sql`
+- Verify in Supabase SQL Editor
+
+**"TypeScript errors in database-helpers.ts"**
+- Normal until database is migrated
+- Run migration to fix
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
+
+### Code Standards
+- TypeScript strict mode
+- ESLint + Prettier
+- Centralized config (no hardcoded text)
+- Comprehensive error handling
+- Accessibility (ARIA labels)
+
+---
+
+## 📄 License
+
+MIT License - see LICENSE file
+
+---
+
+## 🙋 Support
+
+- **Documentation**: This README
+- **Issues**: GitHub Issues
+- **Email**: support@questify.app
+
+---
+
+## 🎉 What's New in v2.0
+
+- ✨ Complete UI redesign
+- 🎨 Data-driven architecture
+- 🛠️ Comprehensive error handling
+- 🔌 Database connection verification
+- 📊 6 new question types
+- 📈 Analytics dashboard
+- 🎯 Centralized configuration
+- ♿ Accessibility improvements
+- 🚀 Performance optimizations
+
+---
+
+**Built with ❤️ for better presentations**
+
+© 2026 Questify. All rights reserved.
