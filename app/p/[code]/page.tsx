@@ -2,24 +2,33 @@
 
 import useSWR from "swr"
 import Link from "next/link"
+import { Users } from "lucide-react"
 import { useMemo, useState, useEffect, useCallback } from "react"
 import { ResultChart } from "@/components/presentations/result-chart"
 import { WordCloud } from "@/components/presentations/word-cloud"
 import { usePresentationRealtime } from "@/hooks/use-presentation-realtime"
 import { useParams } from "next/navigation"
-import { QuestionType, SlideElements } from "@/components/presentations/slide-editor"
+import { useSocket } from "@/hooks/use-socket"
 
 type Slide = {
   id: string
   position: number
-  elements: SlideElements
+  type: 'multiple_choice' | 'word_cloud' | 'question_only' | 'text' | 'single_choice' | 'scale' | 'ranking' | 'qa' | 'quiz' | 'guess_number'
+  question: string
+  options: string[]
+  settings?: {
+    minValue?: number
+    maxValue?: number
+  }
 }
+
 type Presentation = {
   id: string
   title: string
   code: string
   current_slide: number
   show_results: boolean
+  is_active: boolean
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -28,9 +37,28 @@ export default function PresentationViewerPage() {
   const params = useParams<{ code: string }>()
   const code = params.code?.toUpperCase()
 
+  const [participantCount, setParticipantCount] = useState(0)
+
+  const { emit } = useSocket({
+    onRoomJoined: (data) => {
+      console.log('Client: Joined room', data)
+      setParticipantCount(data.participantCount)
+    },
+    onParticipantJoined: (data) => {
+      setParticipantCount(data.participantCount)
+    },
+    onParticipantLeft: (data) => {
+      setParticipantCount(data.participantCount)
+    }
+  })
+
   const { data, mutate, error, isLoading } = useSWR<{ presentation: Presentation; slides: Slide[] }>(
     code ? `/api/presentations/by-code/${code}` : null,
     fetcher,
+    {
+      refreshInterval: 2000,
+      revalidateOnFocus: true,
+    }
   )
 
   const presentation = data?.presentation
@@ -45,6 +73,17 @@ export default function PresentationViewerPage() {
     onSlideChange: () => mutate(),
     onControl: () => mutate(),
   })
+
+  // Join socket room when presentation data is available
+  useEffect(() => {
+    if (presentation?.id && presentation?.code) {
+      emit('join-room', {
+        presentationId: presentation.id,
+        roomCode: presentation.code,
+        userRole: 'participant'
+      })
+    }
+  }, [presentation?.id, presentation?.code, emit])
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [textInput, setTextInput] = useState("")
@@ -79,22 +118,52 @@ export default function PresentationViewerPage() {
     [storageKey],
   )
 
+  // Generate or retrieve a persistent session ID for the participant
+  const sessionId = useMemo(() => {
+    if (typeof window === 'undefined') return ''
+    let id = localStorage.getItem('questify_participant_id')
+    if (!id) {
+      // Fallback or use crypto.randomUUID()
+      id = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2) + Date.now().toString(36)
+      localStorage.setItem('questify_participant_id', id)
+    }
+    return id
+  }, [])
+
   const submitResponse = async (responsePayload: any) => {
     if (!presentation || !slide) return
     setBusy(true)
     setApiError(null);
     try {
+      const userName = 'Anonymous'; // Placeholder for user name, could come from context/auth
+
+      // Submit to socket server (primary real-time submission)
+      emit('submit-response', {
+        presentationId: presentation.id,
+        slideId: slide.id,
+        response: responsePayload,
+        userName: userName || 'Anonymous',
+        slideType: slide.type
+      })
+
+      // API call removed to use pure socket architecture
+      /*
       const res = await fetch("/api/responses", {
         method: "POST",
         body: JSON.stringify({
           presentation_id: presentation.id,
           slide_id: slide.id,
-          ...responsePayload,
+          session_id: sessionId,
+          response_data: responsePayload,
+          user_name: userName || 'Anonymous'
         }),
       })
       if (!res.ok) {
         throw new Error(`Failed to submit response: ${res.statusText}`);
       }
+      */
       mutate() // Rely on realtime to update results; local lock prevents further voting
     } catch (err) {
       console.error("Failed to submit response:", err);
@@ -114,14 +183,14 @@ export default function PresentationViewerPage() {
     if (!textInput.trim()) return;
 
     let payload: any = {};
-    if (slide?.elements.type === 'text' || slide?.elements.type === 'question_only') {
+    if (slide?.type === 'text' || slide?.type === 'question_only') {
       payload = { text: textInput.trim() };
-    } else if (slide?.elements.type === 'word_cloud') {
+    } else if (slide?.type === 'word_cloud') {
       payload = { words: textInput.trim() };
-    } else if (slide?.elements.type === 'guess_number') {
+    } else if (slide?.type === 'guess_number') {
       payload = { guess: parseInt(textInput.trim()) };
     } else {
-      console.error("Unsupported slide type for text submission:", slide?.elements.type);
+      console.error("Unsupported slide type for text submission:", slide?.type);
       setApiError("Unsupported slide type for submission.");
       return;
     }
@@ -164,6 +233,55 @@ export default function PresentationViewerPage() {
     )
   }
 
+  // Debug logging
+  console.log('Presentation data:', {
+    is_active: presentation.is_active,
+    current_slide: presentation.current_slide,
+    code: presentation.code
+  })
+
+  // Show waiting screen if presentation hasn't started yet
+  if (presentation.is_active === false || !presentation.is_active) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="container mx-auto px-4 py-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <div className="mb-8 rounded-lg bg-white p-6 sm:p-12 shadow-xl">
+              <div className="mb-6">
+                <div className="mx-auto mb-4 h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center">
+                  <svg className="h-10 w-10 text-blue-600 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">{presentation.title}</h1>
+                <p className="text-gray-600">Code: <span className="font-mono font-semibold text-blue-600">{presentation.code}</span></p>
+              </div>
+
+              <div className="py-8 border-y border-gray-200">
+                <p className="text-xl text-gray-700 mb-2">Waiting for presenter to start...</p>
+                <p className="text-gray-500">The presentation will begin shortly</p>
+              </div>
+
+              <div className="mt-6 flex items-center justify-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-sm text-gray-600">Connected</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 mt-2 text-gray-500 text-sm">
+                <Users size={14} /> {participantCount} joined
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <Link href="/" className="font-medium text-gray-600 hover:text-gray-800">
+                ← Leave Presentation
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
@@ -176,6 +294,9 @@ export default function PresentationViewerPage() {
               </span>
               <span className="h-2 w-2 rounded-full bg-green-500" />
               <span>Live</span>
+              <span className="ml-2 flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full text-sm">
+                <Users size={14} /> {participantCount}
+              </span>
             </div>
           </div>
 
@@ -187,10 +308,10 @@ export default function PresentationViewerPage() {
                 <ResultsBlock presentationId={presentation.id} slide={slide} />
               ) : (
                 <div className="space-y-8 text-center">
-                  <h2 className="text-3xl font-bold text-gray-800">{slide.elements.question}</h2>
-                  {slide.elements.type === 'multiple_choice' || slide.elements.type === 'single_choice' ? (
+                  <h2 className="text-3xl font-bold text-gray-800">{slide.question}</h2>
+                  {slide.type === 'multiple_choice' || slide.type === 'single_choice' ? (
                     <div className="mx-auto grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-2">
-                      {slide.elements.options.map((opt, i) => {
+                      {slide.options.map((opt: string, i: number) => {
                         const isSelected = selectedIdx === i
                         const disabled = selectedIdx !== null || busy
                         return (
@@ -200,10 +321,9 @@ export default function PresentationViewerPage() {
                             disabled={disabled}
                             aria-pressed={isSelected}
                             className={`transform rounded-lg p-6 text-lg font-semibold shadow-lg transition-all
-                              ${
-                                isSelected
-                                  ? "bg-green-600 text-white ring-2 ring-green-300 hover:scale-100"
-                                  : "bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 hover:from-blue-600 hover:to-indigo-600"
+                              ${isSelected
+                                ? "bg-green-600 text-white ring-2 ring-green-300 hover:scale-100"
+                                : "bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:scale-105 hover:from-blue-600 hover:to-indigo-600"
                               }
                               ${disabled && !isSelected ? "opacity-60 cursor-not-allowed hover:scale-100" : ""}`}
                           >
@@ -212,7 +332,7 @@ export default function PresentationViewerPage() {
                         )
                       })}
                     </div>
-                  ) : slide.elements.type === 'text' ? (
+                  ) : slide.type === 'text' ? (
                     <div className="mx-auto max-w-2xl space-y-4">
                       <textarea
                         value={textInput}
@@ -230,7 +350,7 @@ export default function PresentationViewerPage() {
                         {busy ? "Submitting..." : "Submit"}
                       </button>
                     </div>
-                  ) : slide.elements.type === 'word_cloud' ? (
+                  ) : slide.type === 'word_cloud' ? (
                     <div className="mx-auto max-w-2xl space-y-4">
                       <textarea
                         value={textInput}
@@ -248,7 +368,7 @@ export default function PresentationViewerPage() {
                         {busy ? "Submitting..." : "Submit Words"}
                       </button>
                     </div>
-                  ) : slide.elements.type === 'guess_number' ? (
+                  ) : slide.type === 'guess_number' ? (
                     <div className="mx-auto max-w-2xl space-y-4">
                       <input
                         type="number"
@@ -256,8 +376,8 @@ export default function PresentationViewerPage() {
                         onChange={(e) => setTextInput(e.target.value)}
                         disabled={busy}
                         className="w-full rounded-md border border-gray-300 p-4 text-center focus:border-pink-500 focus:ring-2 focus:ring-pink-200 disabled:opacity-50"
-                        min={slide.elements.settings?.minValue ?? 0}
-                        max={slide.elements.settings?.maxValue ?? 10}
+                        min={slide.settings?.minValue ?? 0}
+                        max={slide.settings?.maxValue ?? 10}
                         placeholder="Enter your guess..."
                       />
                       <button
@@ -268,7 +388,7 @@ export default function PresentationViewerPage() {
                         {busy ? "Submitting..." : "Submit Guess"}
                       </button>
                     </div>
-                  ) : slide.elements.type === 'question_only' ? (
+                  ) : slide.type === 'question_only' ? (
                     <div className="p-4 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
                       <p>This is a question-only slide. No response is needed.</p>
                     </div>
@@ -295,24 +415,28 @@ export default function PresentationViewerPage() {
 
 function ResultsBlock({ presentationId, slide }: { presentationId: string; slide: Slide }) {
   const { data, error, isLoading } = useSWR<{ counts: number[]; cloud?: { text: string; value: number }[] }>(
-    slide.elements.type === 'word_cloud'
+    slide.type === 'word_cloud'
       ? `/api/responses?presentation_id=${presentationId}&slide_id=${slide.id}&type=word_cloud`
-      : `/api/responses?presentation_id=${presentationId}&slide_id=${slide.id}&options=${slide.elements.options.length}`,
-    (u) => fetch(u).then((r) => r.json()),
+      : `/api/responses?presentation_id=${presentationId}&slide_id=${slide.id}&options=${slide.options?.length || 0}`,
+    (u: string) => fetch(u).then((r) => r.json()),
   )
 
   if (isLoading) return <div className="text-center text-gray-500">Loading results...</div>
   if (error) return <div className="text-center text-red-500">Error loading results.</div>
 
-  if (slide.elements.type === 'word_cloud') {
+  if (slide.type === 'word_cloud') {
     return <WordCloud words={data?.cloud ?? []} />
   }
 
+  const votesData = (slide.options || []).map((opt, i) => ({
+    option: opt,
+    count: (data?.counts && data.counts[i]) || 0
+  }))
+
   return (
     <ResultChart
-      question={slide.elements.question}
-      options={slide.elements.options}
-      counts={data?.counts ?? Array(slide.elements.options.length).fill(0)}
+      slide={slide as any}
+      votesData={votesData}
     />
   )
 }
