@@ -1,17 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { JoinForm } from "@/components/presentations/join-form"
-import { createClient } from '@/lib/supabase/client'
-import { PresentationList } from "@/components/presentations/presentation-list"
-import { AdminPresentationView } from "@/components/presentations/admin-presentation-view"
-import { ParticipantPresentationView } from "@/components/presentations/participant-presentation-view"
+import { ArrowRight, BarChart3, Users, Zap, CheckCircle, Sparkles, Shield } from 'lucide-react'
+import { APP_CONFIG, UI_TEXT, ROUTES } from "@/lib/config/app-config"
 
 export type Slide = {
   id: string
   question: string
-  type: 'multiple_choice' | 'word_cloud' | 'question_only' | 'text' | 'single_choice'
+  type: 'multiple_choice' | 'word_cloud' | 'question_only' | 'text' | 'single_choice' | 'scale' | 'ranking' | 'qa' | 'quiz'
   options: string[]
   responses: number[]
   settings: {
@@ -21,6 +19,7 @@ export type Slide = {
     maxLength?: number
     required?: boolean
   }
+  order: number
 }
 
 export type Presentation = {
@@ -29,7 +28,8 @@ export type Presentation = {
   code: string
   created_at: string
   is_active: boolean
-  current_slide_index: number
+  current_slide: number
+  show_results: boolean
   slides: Slide[]
   settings?: {
     allowAnonymous?: boolean
@@ -38,71 +38,68 @@ export type Presentation = {
   }
 }
 
-type View = "home" | "admin-list" | "admin" | "viewer"
+const iconMap: Record<string, any> = {
+  zap: Zap,
+  chart: BarChart3,
+  users: Users,
+  shield: Shield
+}
 
-export default function Page() {
-  const [currentView, setCurrentView] = useState<View>("home")
+export default function LandingPage() {
+  const { landing } = UI_TEXT
   const [joinCode, setJoinCode] = useState("")
-  const [viewerPresentation, setViewerPresentation] = useState<Presentation | null>(null)
-  const supabase = createClient()
 
   const handleJoinPresentation = async (code: string) => {
-    const { data, error } = await supabase
-      .from('presentations')
-      .select('*, slides(*)')
-      .eq('code', code.trim().toUpperCase())
-      .single()
-
-    if (error) {
-      console.error('Error joining presentation:', error)
-      alert('Failed to join presentation. Please check the code.')
-      return
-    }
-
-    if (data) {
-      setViewerPresentation({
-        ...data,
-        slides: data.slides || [],
-        current_slide_index: data.current_slide_index || 0,
-      } as Presentation)
-      setCurrentView("viewer")
-    }
+    window.location.href = ROUTES.join(code.trim().toUpperCase())
   }
 
-  // Views
-  if (currentView === "home") {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="container mx-auto px-4 py-8">
-          <div className="mb-12 text-center">
-            <h1 className="mb-4 text-4xl font-bold text-gray-800">Questify - Interactive Presentations</h1>
-            <p className="text-gray-600">Create and join interactive presentations with real-time audience engagement</p>
-          </div>
-
-          <JoinForm onJoin={handleJoinPresentation} />
-
-          <div className="mt-6 text-center">
-            <Link href="/admin" className="font-medium text-blue-600 hover:text-blue-700">
-              Admin Panel →
-            </Link>
-          </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex flex-col font-sans">
+      {/* Navigation */}
+      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href={ROUTES.home} className="flex items-center gap-2">
+            <Sparkles className="w-8 h-8 text-indigo-600" />
+            <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              {APP_CONFIG.name}
+            </span>
+          </Link>
+          <Link
+            href={ROUTES.manage}
+            className="text-gray-600 hover:text-indigo-600 font-medium transition-colors"
+          >
+            Dashboard
+          </Link>
         </div>
-      </div>
-    )
-  }
+      </nav>
 
-  if (currentView === "viewer" && viewerPresentation) {
-    return (
-      <ParticipantPresentationView
-        presentation={viewerPresentation}
-        onLeave={() => {
-          setViewerPresentation(null)
-          setCurrentView("home")
-        }}
-      />
-    )
-  }
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-8 text-center">
 
-  // The admin views will be handled by the /admin route and its sub-routes
-  return null
+          <div className="space-y-2">
+            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
+              Join the session
+            </h1>
+            <p className="text-lg text-gray-500">
+              Enter the code provided by the presenter to start.
+            </p>
+          </div>
+
+          <div className="bg-white py-8 px-4 shadow-xl rounded-2xl sm:px-10 border border-gray-100">
+            <JoinForm onJoin={handleJoinPresentation} />
+          </div>
+
+          <p className="text-xs text-gray-400">
+            Protected by Questify Secure Systems.
+          </p>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="py-6 text-center text-gray-400 text-sm">
+        <p>© {new Date().getFullYear()} {APP_CONFIG.name}. All rights reserved.</p>
+      </footer>
+    </div>
+  )
 }
