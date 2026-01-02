@@ -3,7 +3,7 @@ import { createServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
 import cors from 'cors'
 import { config } from 'dotenv'
-import { getServerSupabase } from '../lib/supabase/server'
+import { createServiceRoleClient } from '../lib/supabase/service'
 
 // Load environment variables
 config()
@@ -20,8 +20,8 @@ app.use(cors({
 // Health check endpoint
 app.get('/health', (req: express.Request, res: express.Response) => {
   console.log('Health check requested')
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     activeConnections: io.engine.clientsCount,
     activeRooms: Object.keys(rooms).length
@@ -43,7 +43,10 @@ const io = new SocketIOServer(server, {
 // Room and session management
 const rooms = new Map<string, any>()
 const sessions = new Map<string, any>()
-const votes = new Map<string, Map<string, Map<string, number>>>() // Store real-time votes for each slide
+// Store real-time votes: RoomCode -> SlideId -> Option -> Count
+const votes = new Map<string, Map<string, Map<string, number>>>()
+// Store raw responses for saving later: RoomCode -> Array<Response>
+const roomResponses = new Map<string, any[]>()
 
 // Debug logging function
 function debugLog(message: string, data?: any) {
@@ -71,15 +74,15 @@ io.on('connection', async (socket) => {
   }) => {
     try {
       debugLog('Join room request', { socketId: socket.id, ...data })
-      
-      const supabase = await getServerSupabase()
-      
+
+      const supabase = createServiceRoleClient() as any
+
       // Get or create room
       let room = await getOrCreateRoom(data.presentationId, data.roomCode)
-      
+
       // Join socket room
       socket.join(room.roomCode)
-      
+
       // Create session
       const session = {
         id: crypto.randomUUID(),
@@ -91,7 +94,7 @@ io.on('connection', async (socket) => {
         isActive: true
       }
 
-      // Save session to database
+      // Save session to database (optional, keeping for connection tracking)
       const { error: sessionError } = await supabase
         .from('socket_sessions')
         .insert({
@@ -105,8 +108,7 @@ io.on('connection', async (socket) => {
 
       if (sessionError) {
         errorLog('Error saving session to database', sessionError)
-        socket.emit('error', { message: 'Failed to save session' })
-        return
+        // Non-critical, continue
       }
 
       // Update room participant count
@@ -122,18 +124,32 @@ io.on('connection', async (socket) => {
       sessions.set(socket.id, session)
       rooms.set(room.roomCode, room)
 
-      // Initialize votes for this room if not exists
+      // Initialize memory stores if not exist
       if (!votes.has(room.roomCode)) {
         votes.set(room.roomCode, new Map())
       }
+      if (!roomResponses.has(room.roomCode)) {
+        roomResponses.set(room.roomCode, [])
+      }
 
-      // Emit join confirmation
+      // Get current accumulated votes for checking state
+      const roomVotes = votes.get(room.roomCode)
+      // Convert Map to array object for transmission
+      const votesPayload: Record<string, any[]> = {}
+      if (roomVotes) {
+        roomVotes.forEach((slideVotes, slideId) => {
+          votesPayload[slideId] = Array.from(slideVotes.entries()).map(([option, count]) => ({ option, count }))
+        })
+      }
+
+      // Emit join confirmation with current state
       socket.emit('room-joined', {
         roomCode: room.roomCode,
         presentationId: data.presentationId,
         currentSlideIndex: room.currentSlideIndex,
         showResults: room.showResults,
-        participantCount: room.participantCount
+        participantCount: room.participantCount,
+        currentVotes: votesPayload // Send current state to new joiner
       })
 
       // Broadcast new participant to room
@@ -149,10 +165,10 @@ io.on('connection', async (socket) => {
         userRole: session.userRole
       })
 
-      debugLog('Successfully joined room', { 
-        socketId: socket.id, 
-        roomCode: room.roomCode, 
-        participantCount: room.participantCount 
+      debugLog('Successfully joined room', {
+        socketId: socket.id,
+        roomCode: room.roomCode,
+        participantCount: room.participantCount
       })
 
     } catch (error) {
@@ -168,7 +184,7 @@ io.on('connection', async (socket) => {
   }) => {
     try {
       debugLog('Slide change request', { socketId: socket.id, ...data })
-      
+
       const session = sessions.get(socket.id)
       if (!session || session.userRole !== 'presenter') {
         socket.emit('error', { message: 'Only presenters can change slides' })
@@ -184,11 +200,8 @@ io.on('connection', async (socket) => {
       room.currentSlideIndex = data.slideIndex
       await updateRoomSlideIndex(room.id, data.slideIndex)
 
-      // Clear votes for new slide
-      const roomVotes = votes.get(room.roomCode)
-      if (roomVotes) {
-        roomVotes.clear()
-      }
+      // We DO NOT clear votes/responses here anymore as we might want to go back
+      // The frontend should handle displaying relevant data for the slide
 
       // Broadcast to all participants in the room
       io.to(room.roomCode).emit('slide-changed', {
@@ -196,14 +209,8 @@ io.on('connection', async (socket) => {
         presentationId: data.presentationId
       })
 
-      // Log event
-      await logEvent(socket.id, data.presentationId, 'slide-change', {
+      debugLog('Slide changed successfully', {
         slideIndex: data.slideIndex
-      })
-
-      debugLog('Slide changed successfully', { 
-        socketId: socket.id, 
-        slideIndex: data.slideIndex 
       })
 
     } catch (error) {
@@ -222,100 +229,110 @@ io.on('connection', async (socket) => {
   }) => {
     try {
       debugLog('Response submission', { socketId: socket.id, ...data })
-      
       const session = sessions.get(socket.id)
-      if (!session) {
-        socket.emit('error', { message: 'Session not found' })
-        return
+      if (!session) { // Allow even if session missing (reconnects), but prefer session
+        // silent fail or continue
       }
 
-      const supabase = await getServerSupabase()
-      
-      // Save response to database
-      const { error: responseError } = await supabase
-        .from('responses')
-        .insert({
+      const userId = session?.userId
+      const userName = data.userName || session?.userName || 'Anonymous'
+
+      // 1. Store in Memory Only
+      const room = await getRoomByPresentationId(data.presentationId)
+      if (room) {
+        // Add to raw responses list
+        const existingResponses = roomResponses.get(room.roomCode) || []
+        existingResponses.push({
           presentation_id: data.presentationId,
           slide_id: data.slideId,
           response_data: data.response,
-          user_name: data.userName || session.userName,
-          session_id: socket.id
+          user_name: userName,
+          session_id: socket.id,
+          user_id: userId,
+          created_at: new Date().toISOString()
         })
+        roomResponses.set(room.roomCode, existingResponses)
 
-      if (responseError) {
-        errorLog('Error saving response to database', responseError)
-        socket.emit('error', { message: 'Failed to submit response' })
-        return
-      }
+        // 2. Update Aggregates (Voting)
+        const roomVotes = votes.get(room.roomCode) || new Map()
+        const slideVotes = roomVotes.get(data.slideId) || new Map()
 
-      // Handle real-time voting for different question types
-      const room = await getRoomByPresentationId(data.presentationId)
-      if (room) {
-        const roomVotes = votes.get(room.roomCode)
-        if (roomVotes) {
-          const slideVotes = roomVotes.get(data.slideId) || new Map()
-          
-          if (data.slideType === 'multiple-choice' || data.slideType === 'single-choice') {
-            // Handle multiple/single choice voting
-            const selectedOptions = Array.isArray(data.response.value) 
-              ? data.response.value 
-              : [data.response.value]
-            
-            selectedOptions.forEach((option: string) => {
-              const currentCount = slideVotes.get(option) || 0
-              slideVotes.set(option, currentCount + 1)
-            })
-          } else if (data.slideType === 'word-cloud') {
-            // Handle word cloud voting
-            const words = data.response.value.split(/\s+/).filter((word: string) => word.length > 0)
-            words.forEach((word: string) => {
-              const currentCount = slideVotes.get(word) || 0
-              slideVotes.set(word, currentCount + 1)
-            })
-          }
-          
-          roomVotes.set(data.slideId, slideVotes)
-          
-          // Broadcast updated votes to presenter
-          const voteData = Array.from(slideVotes.entries()).map(([option, count]) => ({
-            option,
-            count
-          }))
-          
-          io.to(room.roomCode).emit('votes-updated', {
-            slideId: data.slideId,
-            votes: voteData,
-            slideType: data.slideType
+        if (data.slideType === 'multiple-choice' || data.slideType === 'single-choice') {
+          const selectedOptions = Array.isArray(data.response.value) ? data.response.value : [data.response.value]
+          selectedOptions.forEach((option: string) => {
+            const currentCount = slideVotes.get(option) || 0
+            slideVotes.set(option, currentCount + 1)
+          })
+        } else if (data.slideType === 'word-cloud') {
+          const words = data.response.value.split(/\s+/).filter((word: string) => word.length > 0)
+          words.forEach((word: string) => {
+            const currentCount = slideVotes.get(word) || 0
+            slideVotes.set(word, currentCount + 1)
           })
         }
-      }
+        // (Other types just stored in raw responses)
 
-      // Broadcast response to room
-      if (room) {
+        roomVotes.set(data.slideId, slideVotes)
+        votes.set(room.roomCode, roomVotes)
+
+        // 3. Broadcast Real-time Updates (No DB write)
+        const voteData = Array.from(slideVotes.entries()).map(([option, count]: [string, number]) => ({ option, count }))
+
+        io.to(room.roomCode).emit('votes-updated', {
+          slideId: data.slideId,
+          votes: voteData,
+          slideType: data.slideType
+        })
+
+        // Emit individual response for things like 'text' type that aren't aggregated votes
         io.to(room.roomCode).emit('response-submitted', {
           slideId: data.slideId,
           response: data.response,
-          userName: data.userName || session.userName,
+          userName: userName,
           timestamp: new Date().toISOString()
         })
       }
 
-      // Log event
-      await logEvent(socket.id, data.presentationId, 'submit-response', {
-        slideId: data.slideId,
-        userName: data.userName || session.userName,
-        slideType: data.slideType
-      })
-
-      debugLog('Response submitted successfully', { 
-        socketId: socket.id, 
-        slideId: data.slideId,
-        slideType: data.slideType 
-      })
-
     } catch (error) {
       errorLog('Error submitting response', error)
       socket.emit('error', { message: 'Failed to submit response' })
+    }
+  })
+
+  // Save Session Data (Bulk Insert to DB)
+  socket.on('save-session-data', async (data: { presentationId: string }) => {
+    try {
+      debugLog('Save session data request', data)
+      const room = await getRoomByPresentationId(data.presentationId)
+      if (!room) return
+
+      const currentResponses = roomResponses.get(room.roomCode) || []
+      if (currentResponses.length === 0) {
+        socket.emit('save-complete', { count: 0 })
+        return
+      }
+
+      const supabase = createServiceRoleClient() as any
+
+      // Bulk insert
+      const { error } = await supabase
+        .from('responses')
+        .insert(currentResponses)
+
+      if (error) {
+        errorLog('Error bulk saving responses', error)
+        socket.emit('error', { message: 'Failed to save session data to database' })
+        return
+      }
+
+      debugLog(`Saved ${currentResponses.length} responses to DB`)
+      socket.emit('save-complete', { count: currentResponses.length })
+
+      // Clear memory after successful save? 
+      // Maybe keep it until room closed, but for now lets keep safety
+    } catch (e) {
+      errorLog('Error in save-session-data', e)
+      socket.emit('error', { message: 'Exception saving data' })
     }
   })
 
@@ -327,7 +344,7 @@ io.on('connection', async (socket) => {
   }) => {
     try {
       debugLog('Presenter control request', { socketId: socket.id, ...data })
-      
+
       const session = sessions.get(socket.id)
       if (!session || session.userRole !== 'presenter') {
         socket.emit('error', { message: 'Only presenters can use controls' })
@@ -366,6 +383,9 @@ io.on('connection', async (socket) => {
         case 'end-presentation':
           room.isActive = false
           updatedData = { isActive: false }
+          // Optionally clear memory here if automatic clear is desired
+          // roomResponses.delete(room.roomCode)
+          // votes.delete(room.roomCode)
           break
       }
 
@@ -379,17 +399,6 @@ io.on('connection', async (socket) => {
         presentationId: data.presentationId
       })
 
-      // Log event
-      await logEvent(socket.id, data.presentationId, 'presenter-control', {
-        action: data.action,
-        ...updatedData
-      })
-
-      debugLog('Presenter control executed successfully', { 
-        socketId: socket.id, 
-        action: data.action 
-      })
-
     } catch (error) {
       errorLog('Error handling presenter control', error)
       socket.emit('error', { message: 'Failed to execute control' })
@@ -399,30 +408,20 @@ io.on('connection', async (socket) => {
   // Handle participant list request
   socket.on('get-participants', async (data: { presentationId: string }) => {
     try {
-      debugLog('Get participants request', { socketId: socket.id, ...data })
-      
-      const supabase = await getServerSupabase()
-      
+      // Use DB to get historical joins, or memory?
+      // Keeping DB for robust participant tracking across reconnects
+      const supabase = createServiceRoleClient() as any
       const { data: participants, error } = await supabase
         .from('socket_sessions')
         .select('user_name, user_role, joined_at')
         .eq('presentation_id', data.presentationId)
         .eq('is_active', true)
 
-      if (error) {
-        errorLog('Error fetching participants from database', error)
-        socket.emit('error', { message: 'Failed to fetch participants' })
-        return
-      }
+      if (error) throw error
 
       socket.emit('participants-list', {
         participants,
         presentationId: data.presentationId
-      })
-
-      debugLog('Participants list sent', { 
-        socketId: socket.id, 
-        participantCount: participants.length 
       })
 
     } catch (error) {
@@ -433,32 +432,21 @@ io.on('connection', async (socket) => {
 
   // Handle user activity
   socket.on('user-activity', async (data: { presentationId: string }) => {
-    try {
-      const supabase = await getServerSupabase()
-      
-      await supabase
-        .from('socket_sessions')
-        .update({ last_activity: new Date().toISOString() })
-        .eq('socket_id', socket.id)
-    } catch (error) {
-      errorLog('Error updating user activity', error)
-    }
+    // Optional: track activity in memory vs DB to save load
   })
 
   // Handle disconnect
   socket.on('disconnect', async () => {
     try {
       debugLog(`Client disconnecting: ${socket.id}`)
-      
-      const session = sessions.get(socket.id)
-      if (!session) {
-        debugLog('No session found for disconnecting client', { socketId: socket.id })
-        return
-      }
 
-      const supabase = await getServerSupabase()
-      
-      // Update session as inactive
+      const session = sessions.get(socket.id)
+      if (!session) return
+
+      const supabase = createServiceRoleClient() as any
+
+      // Update session as inactive 
+      // (We can optimize this to be delayed or batched if needed for extreme load)
       await supabase
         .from('socket_sessions')
         .update({ is_active: false, last_activity: new Date().toISOString() })
@@ -486,19 +474,18 @@ io.on('connection', async (socket) => {
       // Remove from local storage
       sessions.delete(socket.id)
 
-      debugLog(`Client disconnected successfully: ${socket.id}`)
-
     } catch (error) {
       errorLog('Error handling disconnect', error)
     }
   })
 })
 
+
 // Database helper functions
 async function getOrCreateRoom(presentationId: string, roomCode: string) {
   try {
-    const supabase = await getServerSupabase()
-    
+    const supabase = createServiceRoleClient() as any
+
     // Try to get existing room
     let { data: room, error } = await supabase
       .from('presentation_rooms')
@@ -522,7 +509,7 @@ async function getOrCreateRoom(presentationId: string, roomCode: string) {
         errorLog('Error creating room', createError)
         throw createError
       }
-      
+
       debugLog('New room created', { roomCode, presentationId })
       return newRoom
     }
@@ -537,8 +524,8 @@ async function getOrCreateRoom(presentationId: string, roomCode: string) {
 
 async function getRoomByPresentationId(presentationId: string) {
   try {
-    const supabase = await getServerSupabase()
-    
+    const supabase = createServiceRoleClient() as any
+
     const { data: room, error } = await supabase
       .from('presentation_rooms')
       .select('*')
@@ -549,7 +536,7 @@ async function getRoomByPresentationId(presentationId: string) {
       debugLog('Room not found', { presentationId })
       return null
     }
-    
+
     return room
   } catch (error) {
     errorLog('Error in getRoomByPresentationId', error)
@@ -559,8 +546,8 @@ async function getRoomByPresentationId(presentationId: string) {
 
 async function updateRoom(roomId: string, updates: any) {
   try {
-    const supabase = await getServerSupabase()
-    
+    const supabase = createServiceRoleClient() as any
+
     const { error } = await supabase
       .from('presentation_rooms')
       .update(updates)
@@ -570,7 +557,7 @@ async function updateRoom(roomId: string, updates: any) {
       errorLog('Error updating room', error)
       throw error
     }
-    
+
     debugLog('Room updated successfully', { roomId, updates })
   } catch (error) {
     errorLog('Error in updateRoom', error)
@@ -592,8 +579,8 @@ async function updateRoomSlideIndex(roomId: string, slideIndex: number) {
 
 async function logEvent(socketId: string, presentationId: string, eventType: string, eventData: any) {
   try {
-    const supabase = await getServerSupabase()
-    
+    const supabase = createServiceRoleClient() as any
+
     await supabase
       .from('socket_events')
       .insert({
@@ -602,7 +589,7 @@ async function logEvent(socketId: string, presentationId: string, eventType: str
         event_type: eventType,
         event_data: eventData
       })
-      
+
     debugLog('Event logged successfully', { eventType, socketId, presentationId })
   } catch (error) {
     errorLog('Error logging event', error)
