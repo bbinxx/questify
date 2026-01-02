@@ -24,16 +24,17 @@ export default function AdminEditorPage() {
         .from('presentations')
         .select('*, slides(*)')
         .eq('id', presentationId)
-        .single()
+        .limit(1)
 
       if (error) {
         console.error('Error fetching presentation:', error)
         setError(error.message)
-      } else if (data) {
+      } else if (data && data.length > 0) {
+        const presentationData = data[0] as any
         setPresentation({
-          ...data,
-          slides: data.slides || [],
-          current_slide_index: data.current_slide_index || 0,
+          ...presentationData,
+          slides: presentationData.slides || [],
+          current_slide: presentationData.current_slide || 0,
         } as Presentation)
       }
       setLoading(false)
