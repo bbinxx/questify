@@ -25,3 +25,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+BCK_DT_CM.ps1
+
+# supabase
+supabase/.temp
