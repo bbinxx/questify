@@ -4,9 +4,10 @@ import { BarChart3 } from 'lucide-react'
 interface ResultChartProps {
   slide: Slide
   votesData?: any[] | null
+  showTitle?: boolean
 }
 
-export function ResultChart({ slide, votesData }: ResultChartProps) {
+export function ResultChart({ slide, votesData, showTitle = true }: ResultChartProps) {
   const totalResponses = votesData ? votesData.reduce((sum, vote) => sum + vote.count, 0) : 0
 
   if (slide.type === 'word_cloud') {
@@ -16,7 +17,7 @@ export function ResultChart({ slide, votesData }: ResultChartProps) {
 
     return (
       <div className="space-y-6">
-        <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>
+        {showTitle && <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>}
         <div className="text-center text-gray-500">
           {sortedWords.length > 0 ? (
             <div className="flex flex-wrap justify-center gap-2">
@@ -44,7 +45,7 @@ export function ResultChart({ slide, votesData }: ResultChartProps) {
   if (slide.type === 'text' || slide.type === 'question_only') {
     return (
       <div className="space-y-6">
-        <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>
+        {showTitle && <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>}
         <div className="text-center text-gray-500">
           <p>Text responses would be displayed here (or the answer for question-only slides).</p>
           <p className="text-sm">This section needs to fetch actual text responses from the database.</p>
@@ -56,7 +57,7 @@ export function ResultChart({ slide, votesData }: ResultChartProps) {
   // For multiple_choice and single_choice
   return (
     <div className="space-y-6">
-      <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>
+      {showTitle && <h2 className="mb-8 text-center text-2xl font-bold">{slide.question}</h2>}
       <div className="space-y-4">
         {slide.options.map((option, index) => {
           const votesForOption = votesData?.find(vote => vote.option === option)?.count || 0
