@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       code: code,
       user_id: user.id,
       is_active: false,
-      current_slide_index: 0,
+      current_slide: 0,
       show_results: false,
     })
     .select()
