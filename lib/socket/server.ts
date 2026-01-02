@@ -1,6 +1,6 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
-import { getServerSupabase } from '../supabase/server';
+import { createServiceRoleClient } from '../supabase/service';
 
 export interface SocketSession {
   id: string;
@@ -108,14 +108,14 @@ export class SocketManager {
     userId?: string;
   }) {
     try {
-      const supabase = await getServerSupabase();
-      
+      const supabase = createServiceRoleClient() as any;
+
       // Get or create room
       let room = await this.getOrCreateRoom(data.presentationId, data.roomCode);
-      
+
       // Join socket room
       socket.join(room.roomCode);
-      
+
       // Create session
       const session: SocketSession = {
         id: crypto.randomUUID(),
@@ -234,8 +234,8 @@ export class SocketManager {
         return;
       }
 
-      const supabase = await getServerSupabase();
-      
+      const supabase = createServiceRoleClient() as any;
+
       // Save response to database
       const { error: responseError } = await supabase
         .from('responses')
@@ -244,7 +244,7 @@ export class SocketManager {
           slide_id: data.slideId,
           response_data: data.response,
           user_name: data.userName || session.userName,
-          socket_id: socket.id
+          session_id: socket.id
         });
 
       if (responseError) {
@@ -347,8 +347,8 @@ export class SocketManager {
 
   private async handleGetParticipants(socket: any, data: { presentationId: string }) {
     try {
-      const supabase = await getServerSupabase();
-      
+      const supabase = createServiceRoleClient() as any;
+
       const { data: participants, error } = await supabase
         .from('socket_sessions')
         .select('user_name, user_role, joined_at')
@@ -377,8 +377,8 @@ export class SocketManager {
       const session = this.sessions.get(socket.id);
       if (!session) return;
 
-      const supabase = await getServerSupabase();
-      
+      const supabase = createServiceRoleClient() as any;
+
       // Update session as inactive
       await supabase
         .from('socket_sessions')
@@ -416,8 +416,8 @@ export class SocketManager {
 
   private async updateUserActivity(socketId: string, presentationId: string) {
     try {
-      const supabase = await getServerSupabase();
-      
+      const supabase = createServiceRoleClient() as any;
+
       await supabase
         .from('socket_sessions')
         .update({ last_activity: new Date().toISOString() })
@@ -429,8 +429,8 @@ export class SocketManager {
 
   // Database helper methods
   private async getOrCreateRoom(presentationId: string, roomCode: string): Promise<PresentationRoom> {
-    const supabase = await getServerSupabase();
-    
+    const supabase = createServiceRoleClient();
+
     // Try to get existing room
     let { data: room, error } = await supabase
       .from('presentation_rooms')
@@ -458,8 +458,8 @@ export class SocketManager {
   }
 
   private async getRoomByPresentationId(presentationId: string): Promise<PresentationRoom | null> {
-    const supabase = await getServerSupabase();
-    
+    const supabase = createServiceRoleClient();
+
     const { data: room, error } = await supabase
       .from('presentation_rooms')
       .select('*')
@@ -471,8 +471,8 @@ export class SocketManager {
   }
 
   private async updateRoom(roomId: string, updates: any) {
-    const supabase = await getServerSupabase();
-    
+    const supabase = createServiceRoleClient();
+
     await supabase
       .from('presentation_rooms')
       .update(updates)
@@ -493,8 +493,8 @@ export class SocketManager {
 
   private async logEvent(socketId: string, presentationId: string, eventType: string, eventData: any) {
     try {
-      const supabase = await getServerSupabase();
-      
+      const supabase = createServiceRoleClient() as any;
+
       await supabase
         .from('socket_events')
         .insert({
