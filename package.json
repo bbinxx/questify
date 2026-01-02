@@ -14,7 +14,10 @@
     "socket:start": "node dist/socket-server.js",
     "deploy:build": "npm run build && npm run socket:build",
     "deploy:start": "concurrently \"npm run start\" \"npm run socket:start\"",
-    "deploy:prod": "npm run deploy:build && npm run deploy:start"
+    "deploy:prod": "npm run deploy:build && npm run deploy:start",
+    "db:verify": "node scripts/verify-db.js",
+    "db:reset": "node scripts/reset-db-schema.js",
+    "commit:each": "node scripts/commit-each.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -55,10 +58,11 @@
     "express": "^4.18.2",
     "geist": "^1.3.1",
     "lucide-react": "^0.454.0",
-    "next": "14.0.4",
+    "next": "^14.2.18",
     "next-pwa": "^5.6.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "postgres": "^3.4.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-hook-form": "^7.48.2",
     "socket.io": "^4.7.4",
     "socket.io-client": "^4.7.4",
@@ -80,7 +84,7 @@
     "concurrently": "^9.2.1",
     "critters": "^0.0.20",
     "eslint": "^8.56.0",
-    "eslint-config-next": "14.0.4",
+    "eslint-config-next": "^14.2.18",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.3"
