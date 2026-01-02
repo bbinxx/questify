@@ -16,8 +16,7 @@
     "deploy:start": "concurrently \"npm run start\" \"npm run socket:start\"",
     "deploy:prod": "npm run deploy:build && npm run deploy:start",
     "db:verify": "node scripts/verify-db.js",
-    "db:reset": "node scripts/reset-db-schema.js",
-    "commit:each": "node scripts/commit-each.js"
+    "db:reset": "node scripts/reset-db-schema.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
