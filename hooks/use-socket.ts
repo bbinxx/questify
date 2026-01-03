@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { createClient } from '@/lib/supabase/client'
 
@@ -111,7 +111,7 @@ export const useSocket = (handlers?: SocketEventHandlers) => {
   const [isConnected, setIsConnected] = useState(false)
   const [userId, setUserId] = useState<string | undefined>(undefined)
   const [connectionError, setConnectionError] = useState<string | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const mountedRef = useRef(true)
 
   // Update handlers ref when handlers change
@@ -258,7 +258,7 @@ export const useSocket = (handlers?: SocketEventHandlers) => {
       globalSocket.once('connect', () => {
         clearTimeout(timeout)
         console.log(`✅ Reconnected! Now emitting ${event}:`, data)
-        globalSocket.emit(event, data)
+        globalSocket?.emit(event, data)
       })
     }
   }, [connectionError])
