@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AdminPresentationView } from '@/components/presentations/admin-presentation-view'
+import { AdminPresentationView } from '@/components/presentations/admin/admin-presentation-view'
 import { Presentation } from '@/app/page'
 import { ROUTES } from '@/lib/config/app-config'
 
@@ -11,7 +11,7 @@ export default function ManageEditorPage() {
   const params = useParams<{ id: string }>()
   const presentationId = params.id
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const [presentation, setPresentation] = useState<Presentation | null>(null)
   const [loading, setLoading] = useState(true)
