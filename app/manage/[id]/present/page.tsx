@@ -1,18 +1,18 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useSocket } from '@/hooks/use-socket'
 import { Presentation, Slide } from '@/app/page'
-import { ResultChart } from '@/components/presentations/result-chart'
+import { ResultChart } from '@/components/presentations/shared/result-chart'
 import { ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { ROUTES } from '@/lib/config/app-config'
 
 export default function ManagePresentPage() {
   const params = useParams<{ id: string }>()
   const presentationId = params.id
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
   const [presentation, setPresentation] = useState<Presentation | null>(null)
