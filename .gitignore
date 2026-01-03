@@ -29,3 +29,7 @@ BCK_DT_CM.ps1
 
 # supabase
 supabase/.temp
+
+# logs
+logs/
+*.log
