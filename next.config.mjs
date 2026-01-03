@@ -86,12 +86,29 @@ const withPWA = withPWAInit({
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  images: { 
+  images: {
     unoptimized: true,
     domains: ['localhost'],
     formats: ['image/webp', 'image/avif'],
   },
   output: "standalone",
+  // Allow network IP access in development - all common private ranges
+  allowedDevOrigins: process.env.NODE_ENV === 'development'
+    ? [
+      // Localhost variants
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      // Class A private (10.0.0.0/8)
+      ...Array.from({ length: 256 }, (_, i) => `http://10.0.${i}.0/24`),
+      ...Array.from({ length: 256 }, (_, i) => `http://10.1.${i}.0/24`),
+      ...Array.from({ length: 256 }, (_, i) => `http://10.2.${i}.0/24`),
+      ...Array.from({ length: 256 }, (_, i) => `http://10.3.${i}.0/24`),
+      // Class B private (172.16.0.0/12)
+      ...Array.from({ length: 16 }, (_, i) => `http://172.${16 + i}.0.0/16`),
+      // Class C private (192.168.0.0/16)
+      ...Array.from({ length: 256 }, (_, i) => `http://192.168.${i}.0/24`),
+    ]
+    : undefined,
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],

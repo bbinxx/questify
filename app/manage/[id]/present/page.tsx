@@ -19,31 +19,93 @@ export default function ManagePresentPage() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [votesData, setVotesData] = useState<any[] | null>(null)
+
+  // Per-slide data tracking
+  const [slideDataMap, setSlideDataMap] = useState<Map<string, {
+    votes: any[] | null,
+    responseCount: number,
+    textResponses: any[]
+  }>>(new Map())
+
   const [isStarted, setIsStarted] = useState(false)
+  const [liveParticipants, setLiveParticipants] = useState<number>(0)
+
+  // Get current slide data
+  const currentSlide = presentation?.slides[currentSlideIndex]
+  const currentSlideData = currentSlide ? slideDataMap.get(currentSlide.id) : null
+  const votesData = currentSlideData?.votes || null
+  const responseCount = currentSlideData?.responseCount || 0
+  const textResponses = currentSlideData?.textResponses || []
+
+  // Helper to update slide data
+  const updateSlideData = (slideId: string, updates: Partial<{
+    votes: any[] | null,
+    responseCount: number,
+    textResponses: any[]
+  }>) => {
+    setSlideDataMap(prev => {
+      const newMap = new Map(prev)
+      const existing = newMap.get(slideId) || { votes: null, responseCount: 0, textResponses: [] }
+      newMap.set(slideId, { ...existing, ...updates })
+      return newMap
+    })
+  }
 
   const { emit, userId } = useSocket({
     onRoomJoined: (data) => {
       console.log('Presenter: Room joined', data)
       setCurrentSlideIndex(data.currentSlideIndex)
+      setLiveParticipants(data.participantCount || 0)
+
+      // Initialize votes from current state if available
+      if (data.currentVotes) {
+        Object.entries(data.currentVotes).forEach(([slideId, votes]: [string, any]) => {
+          const totalResponses = Array.isArray(votes) ? votes.reduce((sum: number, v: any) => sum + v.count, 0) : 0
+          updateSlideData(slideId, { votes, responseCount: totalResponses })
+        })
+      }
+    },
+    onParticipantJoined: (data) => {
+      console.log('Presenter: Participant joined', data)
+      setLiveParticipants(data.participantCount)
+    },
+    onParticipantLeft: (data) => {
+      console.log('Presenter: Participant left', data)
+      setLiveParticipants(data.participantCount)
     },
     onSlideChanged: (data) => {
       console.log('Presenter: Slide changed', data)
       setCurrentSlideIndex(data.slideIndex)
-      setVotesData(null)
+      // Don't reset data - keep it per slide
     },
     onPresenterControl: (data) => {
       console.log('Presenter: Presenter control', data)
       if (data.currentSlideIndex !== undefined) {
         setCurrentSlideIndex(data.currentSlideIndex)
-        setVotesData(null)
+        // Don't reset data
       }
     },
     onVotesUpdated: (data) => {
       console.log('Presenter: Votes updated', data)
-      if (data.slideId === presentation?.slides[currentSlideIndex]?.id) {
-        setVotesData(data.votes)
-      }
+      const totalResponses = data.votes.reduce((sum: number, v: any) => sum + v.count, 0)
+      updateSlideData(data.slideId, {
+        votes: data.votes,
+        responseCount: totalResponses
+      })
+    },
+    onResponseSubmitted: (data) => {
+      console.log('Presenter: Response submitted', data)
+
+      // Update text responses and increment count
+      const existingData = slideDataMap.get(data.slideId) || { votes: null, responseCount: 0, textResponses: [] }
+      updateSlideData(data.slideId, {
+        textResponses: [...existingData.textResponses, {
+          userName: data.userName,
+          response: data.response,
+          timestamp: data.timestamp
+        }],
+        responseCount: existingData.responseCount + 1
+      })
     },
     onError: (data) => {
       console.error('Socket error:', data.message)
@@ -89,15 +151,30 @@ export default function ManagePresentPage() {
   }, [presentationId, supabase, router])
 
   useEffect(() => {
+    console.log('📍 Present page join-room effect:', {
+      hasPresentation: !!presentation,
+      hasUserId: !!userId,
+      presentationId: presentation?.id,
+      roomCode: presentation?.code
+    })
+
     if (presentation && userId) {
+      console.log('🚀 Presenter joining room:', {
+        presentationId: presentation.id,
+        roomCode: presentation.code,
+        userId,
+        userRole: 'presenter'
+      })
+
       emit('join-room', {
         presentationId: presentation.id,
         roomCode: presentation.code,
         userId: userId,
+        userName: 'Presenter',
         userRole: 'presenter',
       })
     }
-  }, [emit, presentation, userId])
+  }, [presentation, userId])
 
   const handleStart = async () => {
     if (!presentation) return
@@ -172,8 +249,7 @@ export default function ManagePresentPage() {
   if (error) return <div className="flex min-h-screen items-center justify-center bg-gray-900 text-red-400 px-4"><p className="text-sm sm:text-base">Error: {error}</p></div>
   if (!presentation) return <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white"><p className="text-sm sm:text-base">No presentation found.</p></div>
 
-  const currentSlide = presentation.slides[currentSlideIndex]
-
+  // currentSlide is already defined at top of component
   if (!currentSlide) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white px-4">
@@ -200,6 +276,10 @@ export default function ManagePresentPage() {
           <span className="text-gray-400 text-xs sm:text-sm">
             {presentation.code}
           </span>
+          <div className="flex items-center gap-1 bg-green-600 bg-opacity-20 px-2 py-1 rounded-full border border-green-400 border-opacity-30">
+            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-green-300 text-xs font-medium">{liveParticipants} Live</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
@@ -217,6 +297,42 @@ export default function ManagePresentPage() {
               <span className="sm:hidden">Start</span>
             </button>
           )}
+
+
+          {isStarted && (
+            <button
+              onClick={async () => {
+                try {
+                  await fetch(`/api/presentations/${presentation.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: false }),
+                  })
+
+                  // Clear all slide data
+                  setSlideDataMap(new Map())
+                  setIsStarted(false)
+
+                  // Broadcast end and clear data to all participants
+                  emit('presenter-control', {
+                    presentationId: presentation.id,
+                    action: 'end-presentation',
+                  })
+
+                  emit('clear-presentation-data', {
+                    presentationId: presentation.id,
+                  })
+                } catch (err) {
+                  console.error('Failed to end presentation:', err)
+                  alert('Failed to end presentation')
+                }
+              }}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold transition-all shadow-lg text-xs sm:text-sm"
+            >
+              <span>End Presentation</span>
+            </button>
+          )}
+
 
           <button
             onClick={handlePrevSlide}
@@ -258,9 +374,9 @@ export default function ManagePresentPage() {
           <div className="mt-4 sm:mt-6 text-center">
             <p className="text-white text-sm sm:text-base md:text-lg">
               <span className="font-semibold text-xl sm:text-2xl text-blue-300">
-                {votesData?.length || 0}
+                {responseCount}
               </span>
-              <span className="ml-2">participants responded</span>
+              <span className="ml-2">participant{responseCount !== 1 ? 's' : ''} responded</span>
             </p>
           </div>
         </div>

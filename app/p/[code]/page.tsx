@@ -139,14 +139,18 @@ export default function PresentationViewerPage() {
     try {
       const userName = 'Anonymous'; // Placeholder for user name, could come from context/auth
 
-      // Submit to socket server (primary real-time submission)
-      emit('submit-response', {
+      const submitData = {
         presentationId: presentation.id,
         slideId: slide.id,
         response: responsePayload,
         userName: userName || 'Anonymous',
         slideType: slide.type
-      })
+      }
+
+      console.log('🚀 Participant submitting response:', submitData)
+
+      // Submit to socket server (primary real-time submission)
+      emit('submit-response', submitData)
 
       // API call removed to use pure socket architecture
       /*
@@ -175,8 +179,11 @@ export default function PresentationViewerPage() {
 
   const vote = async (optionIndex: number) => {
     if (selectedIdx !== null) return // Prevent re-voting
+    if (!slide) return
     saveSelection(optionIndex)
-    await submitResponse({ option_index: optionIndex })
+    // Send the actual option text, not the index
+    const optionText = slide.options[optionIndex]
+    await submitResponse({ value: optionText })
   }
 
   const submitText = async () => {
@@ -184,11 +191,11 @@ export default function PresentationViewerPage() {
 
     let payload: any = {};
     if (slide?.type === 'text' || slide?.type === 'question_only') {
-      payload = { text: textInput.trim() };
+      payload = { value: textInput.trim() };
     } else if (slide?.type === 'word_cloud') {
-      payload = { words: textInput.trim() };
+      payload = { value: textInput.trim() };
     } else if (slide?.type === 'guess_number') {
-      payload = { guess: parseInt(textInput.trim()) };
+      payload = { value: parseInt(textInput.trim()) };
     } else {
       console.error("Unsupported slide type for text submission:", slide?.type);
       setApiError("Unsupported slide type for submission.");

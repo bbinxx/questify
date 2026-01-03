@@ -35,6 +35,7 @@ export interface SocketEventHandlers {
     currentSlideIndex: number
     showResults: boolean
     participantCount: number
+    currentVotes?: Record<string, VoteData[]>
   }) => void
   onParticipantJoined?: (data: {
     userName: string
@@ -77,77 +78,204 @@ export interface SocketEventHandlers {
     slideType?: string
   }) => void
   onSaveComplete?: (data: { count: number }) => void
-  onError?: (data: { message: string }) => void
+  onError?: (data: { message: string; error?: string }) => void
 }
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001'
+const getSocketUrl = () => {
+  // If env var is set, use it
+  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
+    return process.env.NEXT_PUBLIC_SOCKET_URL
+  }
+
+  // In browser, use current hostname with socket port
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
+    const hostname = window.location.hostname
+    const socketPort = process.env.NEXT_PUBLIC_SOCKET_PORT || '3001'
+    return `${protocol}//${hostname}:${socketPort}`
+  }
+
+  // Fallback for SSR
+  return 'http://localhost:3001'
+}
+
+const SOCKET_URL = getSocketUrl()
+
+// Singleton socket instance shared across all hook instances
+let globalSocket: Socket | null = null
+let connectionListenersCount = 0
 
 export const useSocket = (handlers?: SocketEventHandlers) => {
-  const socketRef = useRef<Socket | null>(null)
+  const handlersRef = useRef<SocketEventHandlers | undefined>(handlers)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
   const [isConnected, setIsConnected] = useState(false)
   const [userId, setUserId] = useState<string | undefined>(undefined)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const supabase = createClient()
+  const mountedRef = useRef(true)
+
+  // Update handlers ref when handlers change
+  useEffect(() => {
+    handlersRef.current = handlers
+  }, [handlers])
 
   useEffect(() => {
+    mountedRef.current = true
+    connectionListenersCount++
+
     const getUserId = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUserId(user?.id)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (mountedRef.current) {
+          setUserId(user?.id)
+        }
+      } catch (err) {
+        console.error('Failed to get user ID:', err)
+      }
     }
     getUserId()
 
-    if (!socketRef.current) {
-      const socket = io(SOCKET_URL, {
+    // Create socket only if it doesn't exist
+    if (!globalSocket) {
+      console.log('🔌 Creating new socket connection to:', SOCKET_URL)
+
+      globalSocket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 10000,
+        timeout: 30000,
+        autoConnect: true,
+        forceNew: false,
       })
 
-      socket.on('connect', () => {
-        console.log('Socket connected', socket.id)
-        setIsConnected(true)
-      })
-
-      socket.on('disconnect', () => {
-        console.log('Socket disconnected', socket.id)
-        setIsConnected(false)
-      })
-
-      socket.on('error', (data) => {
-        console.error('Socket error:', data)
-        handlers?.onError?.(data)
-      })
-
-      // Register all handlers
-      for (const event in handlers) {
-        if (Object.prototype.hasOwnProperty.call(handlers, event)) {
-          const handler = (handlers as any)[event]
-          if (typeof handler === 'function') {
-            // Remove 'on' prefix and convert camelCase to kebab-case (e.g. onRoomJoined -> room-joined)
-            const name = event.replace(/^on/, '')
-            const eventName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
-            socket.on(eventName, handler)
-          }
+      globalSocket.on('connect', () => {
+        console.log('✅ Socket connected:', globalSocket?.id)
+        if (mountedRef.current) {
+          setIsConnected(true)
+          setConnectionError(null)
         }
+      })
+
+      globalSocket.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', reason)
+        if (mountedRef.current) {
+          setIsConnected(false)
+        }
+
+        // Don't attempt reconnection on intentional disconnects
+        if (reason === 'io client disconnect' || reason === 'io server disconnect') {
+          console.log('Intentional disconnect, not reconnecting')
+        }
+      })
+
+      globalSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error)
+        if (mountedRef.current) {
+          setConnectionError(error.message)
+          setIsConnected(false)
+        }
+      })
+
+      globalSocket.on('error', (data) => {
+        console.error('Socket error:', data)
+        handlersRef.current?.onError?.(data)
+      })
+
+      // Register all known event types
+      const setupHandler = (eventKey: string, eventName: string) => {
+        globalSocket?.on(eventName, (data: any) => {
+          console.log(`📨 Received ${eventName}:`, data)
+          const handler = (handlersRef.current as any)?.[eventKey]
+          if (typeof handler === 'function') {
+            handler(data)
+          }
+        })
       }
 
-      socketRef.current = socket
+      setupHandler('onRoomJoined', 'room-joined')
+      setupHandler('onParticipantJoined', 'participant-joined')
+      setupHandler('onParticipantLeft', 'participant-left')
+      setupHandler('onSlideChanged', 'slide-changed')
+      setupHandler('onResponseSubmitted', 'response-submitted')
+      setupHandler('onPresenterControl', 'presenter-control')
+      setupHandler('onParticipantsList', 'participants-list')
+      setupHandler('onVotesUpdated', 'votes-updated')
+      setupHandler('onSaveComplete', 'save-complete')
+    } else {
+      // Socket already exists, just update connection status
+      if (mountedRef.current) {
+        setIsConnected(globalSocket.connected)
+      }
     }
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-        socketRef.current = null
+      mountedRef.current = false
+      connectionListenersCount--
+
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+
+      // Only disconnect when all components using the socket have unmounted
+      if (connectionListenersCount === 0 && globalSocket) {
+        console.log('🔌 All components unmounted, disconnecting socket')
+        globalSocket.disconnect()
+        globalSocket = null
       }
     }
-  }, [handlers, supabase])
+  }, [supabase])
 
   const emit = useCallback((event: string, data: any) => {
-    if (socketRef.current && isConnected) {
-      console.log(`Emitting ${event}:`, data)
-      socketRef.current.emit(event, data)
-    } else {
-      console.warn(`Socket not connected, cannot emit ${event}:`, data)
+    if (!globalSocket) {
+      console.error('⚠️ Socket not initialized, cannot emit', event)
+      return
     }
-  }, [isConnected])
 
-  return { socket: socketRef.current, isConnected, emit, userId }
+    if (globalSocket.connected) {
+      console.log(`📤 Emitting ${event}:`, data)
+      globalSocket.emit(event, data)
+    } else {
+      console.warn(`⚠️ Socket disconnected, attempting to reconnect before emitting ${event}`)
+
+      // Try to reconnect
+      globalSocket.connect()
+
+      // Wait for connection then emit
+      const timeout = setTimeout(() => {
+        if (globalSocket?.connected) {
+          console.log(`✅ Reconnected! Now emitting ${event}:`, data)
+          globalSocket.emit(event, data)
+        } else {
+          console.error(`❌ Failed to reconnect, cannot emit ${event}`)
+          alert('Connection lost. Please refresh the page.')
+        }
+      }, 2000)
+
+      // Cleanup timeout if connection happens sooner
+      globalSocket.once('connect', () => {
+        clearTimeout(timeout)
+        console.log(`✅ Reconnected! Now emitting ${event}:`, data)
+        globalSocket.emit(event, data)
+      })
+    }
+  }, [connectionError])
+
+  const reconnect = useCallback(() => {
+    if (globalSocket && !globalSocket.connected) {
+      console.log('Manually reconnecting socket...')
+      globalSocket.connect()
+    }
+  }, [])
+
+  return {
+    socket: globalSocket,
+    isConnected,
+    emit,
+    userId,
+    connectionError,
+    reconnect
+  }
 }

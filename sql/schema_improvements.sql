@@ -1,0 +1,9 @@
+-- ==========================================
+-- ⚠️ DEPRECATED - DO NOT USE
+-- ==========================================
+-- This file has been merged into database_schema.sql
+-- 
+-- Please use: database_schema.sql instead
+-- 
+-- See: docs/database-migration-guide.md for details
+-- ==========================================
