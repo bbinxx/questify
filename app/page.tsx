@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { JoinForm } from "@/components/presentations/join-form"
+import { JoinForm } from "@/components/presentations/participant/join-form"
 import { ArrowRight, BarChart3, Users, Zap, CheckCircle, Sparkles, Shield } from 'lucide-react'
 import { APP_CONFIG, UI_TEXT, ROUTES } from "@/lib/config/app-config"
 
