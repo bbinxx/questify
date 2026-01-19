@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useSocket } from '@/hooks/use-socket'
 import { Presentation, Slide } from '@/app/page'
-import { ResultChart } from '@/components/presentations/result-chart'
+import { ResultChart } from '@/components/presentations/shared/result-chart'
 import { ChevronLeft, ChevronRight, Play } from 'lucide-react'
 
 export default function AdminPresentPage() {
