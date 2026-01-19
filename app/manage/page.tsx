@@ -1,6 +1,6 @@
 "use client"
 
-import { PresentationList } from "@/components/presentations/presentation-list"
+import { PresentationList } from "@/components/presentations/dashboard/presentation-list"
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ROUTES } from '@/lib/config/app-config'
