@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AdminPresentationView } from '@/components/presentations/admin-presentation-view'
+import { AdminPresentationView } from '@/components/presentations/admin/admin-presentation-view'
 import { Presentation } from '@/app/page'
 
 export default function AdminEditorPage() {
