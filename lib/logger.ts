@@ -251,6 +251,17 @@ class Logger {
             userId,
         })
     }
+    socketWarn(message: string, data?: any, socketId?: string, userId?: string) {
+        this.writeLog({
+            timestamp: new Date().toISOString(),
+            level: 'WARN',
+            type: 'SOCKET',
+            message,
+            data,
+            socketId,
+            userId,
+        })
+    }
 }
 
 export const logger = new Logger()
