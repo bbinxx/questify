@@ -74,3 +74,14 @@ This approach creates a self-contained container with your app, custom server, a
    - The provider should automatically detect the `Dockerfile`.
    - Add your environment variables in the provider's dashboard.
    - The app will build and start automatically using the settings in `Dockerfile`.
+
+## 7. Render Deployment (Blueprint)
+We have included a `render.yaml` file for easy deployment on Render.
+
+1. **Push to GitHub**: Ensure your latest code is pushed.
+2. **Go to Render Dashboard**: Click **New +** -> **Blueprint**.
+3. **Connect Repository**: Select your `questify` repository.
+4. **Configure Env Vars**: Render will ask for `DATABASE_URL` and `REDIS_URL`. Paste your hosted connection strings.
+5. **Deploy**: Click Apply. Render will build the Docker image and deploy your app.
+
+**Note**: The first build might take a few minutes as it compiles Next.js and installs dependencies.

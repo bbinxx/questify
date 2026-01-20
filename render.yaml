@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: questify
+    env: docker
+    plan: free
+    region: singapore # or ohio, frankfurt, etc.
+    envVars:
+      - key: DATABASE_URL
+        sync: false # User must provide this in dashboard
+      - key: REDIS_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: 1
