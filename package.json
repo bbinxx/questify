@@ -7,7 +7,9 @@
         "dev": "nodemon server.js",
         "dev:next": "next dev",
         "build": "next build",
-        "start": "NODE_ENV=production node server.js"
+        "start": "NODE_ENV=production node server.js",
+        "db:prod:generate": "prisma generate --schema=prisma/prod.schema.prisma",
+        "db:prod:push": "prisma db push --schema=prisma/prod.schema.prisma"
     },
     "nodemonConfig": {
         "watch": [
@@ -22,10 +24,15 @@
         "delay": "1000"
     },
     "dependencies": {
+        "@prisma/client": "5.10.2",
         "@types/canvas-confetti": "^1.9.0",
+        "bcryptjs": "^3.0.3",
         "canvas-confetti": "^1.9.4",
         "framer-motion": "^12.27.1",
+        "ioredis": "^5.9.2",
+        "jose": "^6.1.3",
         "next": "^14.2.18",
+        "prisma": "5.10.2",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "socket.io": "^4.8.3",
@@ -33,6 +40,7 @@
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4.1.18",
+        "@types/bcryptjs": "^2.4.6",
         "@types/node": "^20.10.5",
         "@types/react": "^18.2.45",
         "@types/react-dom": "^18.2.18",
