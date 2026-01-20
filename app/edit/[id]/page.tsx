@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createQuiz } from '../actions/quiz'
+import { useState, useEffect } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { getQuiz, updateQuiz } from '../../actions/quiz'
 
 // Icon components
 const MenuIcon = () => (
@@ -147,10 +147,13 @@ const DEFAULT_QUESTION: Question = {
     selectedAnswers: []
 }
 
-export default function QuizCreator() {
+export default function EditQuiz() {
     const router = useRouter()
+    const params = useParams()
+    const quizId = params.id as string
+
     const [quizTitle, setQuizTitle] = useState('')
-    const [questions, setQuestions] = useState<Question[]>([{ ...DEFAULT_QUESTION, id: '1' }])
+    const [questions, setQuestions] = useState<Question[]>([])
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 
     // UI State
@@ -158,6 +161,32 @@ export default function QuizCreator() {
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [darkMode, setDarkMode] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        async function loadQuiz() {
+            const res = await getQuiz(quizId)
+            if (res.success && res.quiz) {
+                setQuizTitle(res.quiz.title)
+                const formatted = res.quiz.questions.map((q: any, idx: number) => ({
+                    id: (idx + 1).toString(),
+                    text: q.text,
+                    answers: JSON.parse(q.options),
+                    timeLimit: `${q.timeLimit} seconds`,
+                    points: 'Standard',
+                    answerType: 'Single select',
+                    selectedAnswers: [q.correct]
+                }))
+                // Ensure at least one question exists to prevent errors
+                setQuestions(formatted.length > 0 ? formatted : [{ ...DEFAULT_QUESTION, id: '1' }])
+                setIsLoading(false)
+            } else {
+                alert('Failed to load quiz')
+                router.push('/dashboard')
+            }
+        }
+        loadQuiz()
+    }, [quizId, router])
 
     // Derived state for current question
     const currentQuestion = questions[currentQuestionIndex]
@@ -199,7 +228,6 @@ export default function QuizCreator() {
         const newId = (Math.max(...questions.map(q => parseInt(q.id))) + 1).toString()
         setQuestions([...questions, { ...DEFAULT_QUESTION, id: newId }])
         setCurrentQuestionIndex(questions.length)
-        // Scroll sidebar?
     }
 
     const deleteQuestion = () => {
@@ -232,10 +260,10 @@ export default function QuizCreator() {
                 timeLimit: q.timeLimit
             }))
 
-            const result = await createQuiz(quizTitle, formattedQuestions)
+            const result = await updateQuiz(quizId, quizTitle, formattedQuestions)
 
             if (result.success) {
-                alert('Quiz created successfully!')
+                alert('Quiz updated successfully!')
                 router.push('/dashboard')
             } else {
                 alert('Error: ' + result.error)
@@ -252,6 +280,8 @@ export default function QuizCreator() {
         setSidebarOpen(false)
         setSettingsOpen(false)
     }
+
+    if (isLoading) return <div className="h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center text-slate-500 dark:text-slate-400">Loading quiz...</div>
 
     return (
         <div className={`h-screen flex flex-col overflow-hidden ${darkMode ? 'dark' : ''}`}>
@@ -307,7 +337,7 @@ export default function QuizCreator() {
                         className="btn-accent flex items-center gap-1.5 text-xs px-3 py-1.5 disabled:opacity-50"
                     >
                         <SaveIcon />
-                        <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
+                        <span className="hidden sm:inline">{isSaving ? 'Updating...' : 'Update'}</span>
                     </button>
                 </div>
             </header>
