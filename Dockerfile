@@ -10,8 +10,8 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
 RUN \
-  if [ -f package-lock.json ]; then npm ci; \
-  else echo "Lockfile not found." && exit 1; fi
+    if [ -f package-lock.json ]; then npm ci; \
+    else echo "Lockfile not found." && exit 1; fi
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -20,6 +20,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Generate Prisma Client for Production
+# Remove default schema to prevent accidental generation of SQLite client
+RUN rm prisma/schema.prisma
 RUN npx prisma generate --schema=prisma/prod.schema.prisma
 
 # Next.js collects completely anonymous telemetry data about general usage.
