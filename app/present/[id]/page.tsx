@@ -1,25 +1,31 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useParams } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
 import { motion, AnimatePresence } from 'framer-motion'
-import QuestionCard from '../components/game/QuestionCard'
-import AnswerGrid from '../components/game/AnswerGrid'
+import QuestionCard from '../../components/game/QuestionCard'
+import AnswerGrid from '../../components/game/AnswerGrid'
 import confetti from 'canvas-confetti'
+import { getQuiz } from '../../actions/quiz'
 
 interface Player { id: string; name: string; color: string; avatar: string; score: number; lastPoints: number; x: number; y: number; vx: number; vy: number; size?: number; }
 interface Answer { text: string; color: string; icon: string; }
 type GameState = 'waiting' | 'reading' | 'answering' | 'result' | 'leaderboard' | 'finished'
 
 export default function PresenterView() {
+    const params = useParams()
+    const quizId = params.id as string
+
     const [players, setPlayers] = useState<Player[]>([])
-    const [roomCode] = useState('482519')
+    const [roomCode, setRoomCode] = useState('') // This would come from the server session
     const [gameState, setGameState] = useState<GameState>('waiting')
     const [socket, setSocket] = useState<Socket | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const animRef = useRef<number>()
 
     // Game Data
+    const [quizTitle, setQuizTitle] = useState('')
     const [qText, setQText] = useState('')
     const [answers, setAnswers] = useState<Answer[]>([])
     const [timeLeft, setTimeLeft] = useState(0)
@@ -27,11 +33,47 @@ export default function PresenterView() {
     const [qNum, setQNum] = useState(0)
     const [totalQ, setTotalQ] = useState(0)
     const [leaderboard, setLeaderboard] = useState<Player[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+
+    const [questions, setQuestions] = useState<any[]>([])
 
     useEffect(() => {
+        async function loadQuiz() {
+            const res = await getQuiz(quizId)
+            if (res.success && res.quiz) {
+                setQuizTitle(res.quiz.title)
+                setTotalQ(res.quiz.questions.length)
+
+                // Format questions for the game server
+                const formatted = res.quiz.questions.map((q: any) => ({
+                    question: q.text,
+                    answers: JSON.parse(q.options).map((opt: string, idx: number) => ({
+                        text: opt,
+                        correct: idx === q.correct
+                    })),
+                    time: q.timeLimit
+                }))
+                setQuestions(formatted)
+
+                // For demo purposes, we'll use a portion of the ID as room code if server doesn't provide one
+                setRoomCode(quizId.substring(0, 6).toUpperCase())
+                setIsLoading(false)
+            } else {
+                alert('Failed to load quiz')
+            }
+        }
+        loadQuiz()
+    }, [quizId])
+
+    useEffect(() => {
+        if (!roomCode || questions.length === 0) return
+
         const s = io()
         setSocket(s)
-        s.on('connect', () => s.emit('host-room', roomCode))
+
+        // Pass both room code and questions to the server
+        s.on('connect', () => s.emit('host-room', { roomCode, questions }))
+
         s.on('players-list', setPlayers)
         s.on('player-joined', p => setPlayers(prev => [...prev, p]))
         s.on('player-left', id => setPlayers(prev => prev.filter(p => p.id !== id)))
@@ -40,7 +82,6 @@ export default function PresenterView() {
             setGameState(d.state)
             if (d.state === 'reading') {
                 setQText(d.questionText); setQNum(d.qIndex); setTotalQ(d.totalQ); setTimeLeft(d.duration);
-                // Fix: use answers sent by server instead of clearing
                 setAnswers(d.answers || [])
             } else if (d.state === 'answering') {
                 setQText(d.questionText); setAnswers(d.answers); setTimeLeft(d.duration)
@@ -95,10 +136,22 @@ export default function PresenterView() {
     }, [gameState])
 
     const handleNext = () => {
-        if (gameState === 'waiting') socket?.emit('start-game', roomCode)
-        else if (gameState === 'result') socket?.emit('show-leaderboard', roomCode)
-        else if (gameState === 'leaderboard') socket?.emit('next-question', roomCode)
+        if (!socket || !roomCode) return
+
+        if (gameState === 'waiting') {
+            console.log('🚀 Starting game for room:', roomCode)
+            // Send full payload to ensure server has everything needed
+            socket.emit('start-game', { roomCode, questions })
+        }
+        else if (gameState === 'result') {
+            socket.emit('show-leaderboard', roomCode)
+        }
+        else if (gameState === 'leaderboard') {
+            socket.emit('next-question', roomCode)
+        }
     }
+
+    if (isLoading) return <div className="h-screen bg-slate-900 flex items-center justify-center text-white">Loading quiz...</div>
 
     // --- VIEWS ---
 
@@ -125,8 +178,9 @@ export default function PresenterView() {
             ))}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-4">
                 <div className="text-center w-full max-w-lg">
+                    <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 opacity-50">{quizTitle}</h1>
                     <h1 className="text-3xl md:text-6xl font-black text-white mb-4">Join at questify.app</h1>
-                    <div className="bg-white text-slate-900 inline-block px-6 py-4 md:px-12 md:py-6 rounded-2xl w-full">
+                    <div className="bg-white text-slate-900 inline-block px-6 py-4 md:px-12 md:py-6 rounded-2xl w-full shadow-2xl">
                         <span className="text-lg md:text-2xl font-bold uppercase block text-slate-500 mb-2">Game PIN</span>
                         <span className="text-5xl md:text-8xl font-black tracking-widest">{roomCode}</span>
                     </div>
@@ -148,35 +202,14 @@ export default function PresenterView() {
                     <QuestionCard text={qText} className="flex-grow-[1]" />
                 </div>
                 <div className="flex-grow-[2] relative min-h-0">
-                    {gameState === 'reading' ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    {gameState === 'reading' && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-slate-900/50 backdrop-blur-sm rounded-2xl">
                             <div className="w-full max-w-4xl h-3 md:h-4 bg-slate-800 rounded-full overflow-hidden mb-4 md:mb-6"><motion.div initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 5, ease: "linear" }} className="h-full bg-indigo-500" /></div>
                             <p className="text-lg md:text-2xl text-slate-400 font-bold uppercase tracking-widest">Reading Phase</p>
-                            {/* Hidden answer grid to pre-load for smoothness (opacity handled inside if needed, or just let it sit behind?)
-                                  Actually, existing logic puts Reading overlay via ternary.
-                                  If we want NO blink, we might want to render AnswerGrid BEHIND the reading overlay?
-                                  Let's keep it simple: server sends answers. Client sets state.
-                                  Effectively, answers are READY.
-                                  But the UI only Shows AnswerGrid in 'else' block below.
-                                  The blink comes from AnswerGrid MOUNTING.
-                                  To fix mount blink, we should Render AnswerGrid ALWAYS, but overlay Reading on top.
-                               */}
-
-                            <div className="absolute inset-0 -z-10 opacity-0">
-                                {/* Pre-render to warm up? No, that's complex. 
-                                      The user said "options should not blink".
-                                      Usually this means they want to SEE the options while Reading.
-                                      If so, I should just render AnswerGrid below Reading bar?
-                                      Let's assume "Don't blink" means "Show immediately". 
-                                      So I will remove the ternary and just show AnswerGrid below the reading bar.
-                                  */}
-                            </div>
                         </div>
-                    ) : null}
-
-                    {/* Render AnswerGrid if answers exist, regardless of Reading/Answering */}
+                    )}
                     {answers.length > 0 && (
-                        <div className={gameState === 'reading' ? 'opacity-50 pointer-events-none filter grayscale' : ''}>
+                        <div className={gameState === 'reading' ? 'filter grayscale blur-[2px]' : ''}>
                             <AnswerGrid answers={answers} revealed={gameState === 'result'} correctIndex={correctIdx} disabled={true} />
                         </div>
                     )}
@@ -193,7 +226,7 @@ export default function PresenterView() {
             <div className="flex-1 bg-indigo-900 flex flex-col items-center justify-center relative overflow-hidden p-4">
                 <h1 className="text-4xl md:text-6xl font-black text-white mb-8 md:mb-12 relative z-10 text-center">The Winners</h1>
                 <div className="flex items-end justify-center gap-2 md:gap-4 relative z-10 h-[300px] md:h-[500px] w-full max-w-3xl">
-                    {/* 2nd */}
+                    {/* Podium logic remains same */}
                     {second && (
                         <div className="flex flex-col items-center w-1/3">
                             <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }} className="flex flex-col items-center mb-2 md:mb-4">
@@ -206,7 +239,6 @@ export default function PresenterView() {
                             </motion.div>
                         </div>
                     )}
-                    {/* 1st */}
                     {first && (
                         <div className="flex flex-col items-center w-1/3 relative -top-4 md:-top-10">
                             <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 1.5 }} className="flex flex-col items-center mb-2 md:mb-4">
@@ -220,7 +252,6 @@ export default function PresenterView() {
                             </motion.div>
                         </div>
                     )}
-                    {/* 3rd */}
                     {third && (
                         <div className="flex flex-col items-center w-1/3">
                             <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 1.0 }} className="flex flex-col items-center mb-2 md:mb-4">
