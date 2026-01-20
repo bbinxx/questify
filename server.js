@@ -2,6 +2,8 @@ const { createServer } = require('http')
 const { Server } = require('socket.io')
 const next = require('next')
 const QUIZ_DATA = require('./app/data/quiz.js')
+const { PrismaClient } = require('@prisma/client')
+const Redis = require('ioredis')
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = 'localhost'
@@ -21,7 +23,7 @@ const handler = app.getRequestHandler()
 class RoomManager {
     constructor() { this.rooms = new Map() }
 
-    createRoom(id, hostId) {
+    createRoom(id, hostId, questions) {
         this.rooms.set(id, {
             host: hostId,
             players: new Map(),
@@ -30,7 +32,8 @@ class RoomManager {
             qStartTime: 0,
             timers: { main: null, phase: null },
             lastQuestion: null,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            questions: questions || null
         })
         return this.rooms.get(id)
     }
@@ -84,23 +87,34 @@ app.prepare().then(() => {
         console.log('👤 Client connected:', socket.id)
 
         // HOST EVENTS
-        socket.on('host-room', (roomId) => {
+        socket.on('host-room', (data) => {
+            // Support both string (legacy) and object payload
+            const roomId = typeof data === 'object' ? data.roomCode : data
+            const questions = typeof data === 'object' ? data.questions : QUIZ_DATA
+
             console.log('🎯 Host joining room:', roomId)
             socket.join(roomId)
             socket.data = { role: 'host', roomId }
 
             let room = roomManager.getRoom(roomId)
             if (!room) {
-                room = roomManager.createRoom(roomId, socket.id)
+                room = roomManager.createRoom(roomId, socket.id, questions)
                 console.log('📦 New room created:', roomId)
             } else {
                 room.host = socket.id
+                // Update questions if provided (e.g. re-hosting)
+                if (questions) {
+                    room.questions = questions
+                }
             }
 
             socket.emit('players-list', Array.from(room.players.values()).filter(p => p.connected))
         })
 
-        socket.on('start-game', (roomId) => {
+        socket.on('start-game', (data) => {
+            // Handle both string and object
+            const roomId = typeof data === 'object' ? data.roomCode : data
+
             const room = roomManager.getRoom(roomId)
             if (room && room.host === socket.id) {
                 console.log('🎮 Starting game in room:', roomId)
@@ -116,6 +130,13 @@ app.prepare().then(() => {
 
                 room.currentQ = -1
                 runGameLoop(roomId, io)
+            } else {
+                console.log('❌ Start Game Failed:', {
+                    roomId,
+                    roomExists: !!room,
+                    hostId: room ? room.host : 'N/A',
+                    socketId: socket.id
+                })
             }
         })
 
@@ -160,7 +181,8 @@ app.prepare().then(() => {
 
             let room = roomManager.getRoom(roomId)
             if (!room) {
-                room = roomManager.createRoom(roomId, null)
+                // If player joins before host, create room with default/empty questions
+                room = roomManager.createRoom(roomId, null, QUIZ_DATA)
             }
 
             // Generate Random Physics
@@ -191,11 +213,12 @@ app.prepare().then(() => {
                 existingPlayer.connected = true
                 room.players.set(socket.id, existingPlayer)
 
+                const questions = room.questions || QUIZ_DATA
                 // Sync state
                 socket.emit('game-state', {
                     state: room.gameState,
-                    questionText: room.gameState !== 'waiting' ? QUIZ_DATA[room.currentQ]?.question : null,
-                    answers: (room.gameState === 'reading' || room.gameState === 'answering' || room.gameState === 'result') ? QUIZ_DATA[room.currentQ]?.answers : [],
+                    questionText: room.gameState !== 'waiting' ? questions[room.currentQ]?.question : null,
+                    answers: (room.gameState === 'reading' || room.gameState === 'answering' || room.gameState === 'result') ? questions[room.currentQ]?.answers : [],
                     score: existingPlayer.score
                 })
             } else {
@@ -219,12 +242,13 @@ app.prepare().then(() => {
                 room.players.set(socket.id, newPlayer)
                 socket.to(roomId).emit('player-joined', newPlayer)
 
+                const questions = room.questions || QUIZ_DATA
                 // Sync state for late joiners
                 if (room.gameState !== 'waiting') {
                     socket.emit('game-state', {
                         state: room.gameState,
-                        questionText: QUIZ_DATA[room.currentQ]?.question,
-                        answers: (room.gameState === 'reading' || room.gameState === 'answering' || room.gameState === 'result') ? QUIZ_DATA[room.currentQ]?.answers : [],
+                        questionText: questions[room.currentQ]?.question,
+                        answers: (room.gameState === 'reading' || room.gameState === 'answering' || room.gameState === 'result') ? questions[room.currentQ]?.answers : [],
                         score: 0
                     })
                 }
@@ -252,8 +276,9 @@ app.prepare().then(() => {
                 return
             }
 
+            const questions = room.questions || QUIZ_DATA
             player.hasAnswered = true
-            const question = QUIZ_DATA[room.currentQ]
+            const question = questions[room.currentQ]
             const isCorrect = question.answers[answerIndex]?.correct
             let points = 0
 
@@ -309,10 +334,12 @@ app.prepare().then(() => {
             return
         }
 
-        room.currentQ++
-        console.log(`📊 Question ${room.currentQ + 1}/${QUIZ_DATA.length}`)
+        const questions = room.questions || QUIZ_DATA
 
-        if (room.currentQ >= QUIZ_DATA.length) {
+        room.currentQ++
+        console.log(`📊 Question ${room.currentQ + 1}/${questions.length}`)
+
+        if (room.currentQ >= questions.length) {
             room.gameState = 'finished'
             io.to(roomId).emit('game-state', {
                 state: 'finished',
@@ -322,7 +349,7 @@ app.prepare().then(() => {
             return
         }
 
-        const question = QUIZ_DATA[room.currentQ]
+        const question = questions[room.currentQ]
         room.players.forEach(p => {
             p.hasAnswered = false
             p.lastCorrect = false
@@ -336,7 +363,7 @@ app.prepare().then(() => {
             questionText: question.question,
             answers: question.answers,
             qIndex: room.currentQ + 1,
-            totalQ: QUIZ_DATA.length,
+            totalQ: questions.length,
             duration: 5
         })
         console.log('📖 Reading phase started')
@@ -351,7 +378,8 @@ app.prepare().then(() => {
                 answers: question.answers,
                 duration: question.time
             })
-            console.log('⏱️  Answering phase started:', question.time, 'seconds')
+            const duration = question.time || 20
+            console.log('⏱️  Answering phase started:', duration, 'seconds')
 
             room.timers.phase = setTimeout(() => {
                 // RESULT PHASE
@@ -378,7 +406,7 @@ app.prepare().then(() => {
                     leaderboard: getLeaderboard(room)
                 })
                 console.log('📊 Results shown')
-            }, question.time * 1000)
+            }, duration * 1000)
         }, 5000)
     }
 
@@ -397,7 +425,34 @@ app.prepare().then(() => {
         process.exit(1)
     })
 
-    httpServer.listen(port, () => {
+    httpServer.listen(port, async () => {
+        // Test Connections
+        console.log('\n🔍 Testing Connections...')
+        try {
+            const { PrismaClient } = require('@prisma/client')
+            const prisma = new PrismaClient()
+            await prisma.$connect()
+            console.log('✅ Database (Prisma): Connected')
+            await prisma.$disconnect()
+        } catch (e) {
+            console.error('❌ Database (Prisma): Failed', e.message)
+        }
+
+        try {
+            const Redis = require('ioredis')
+            const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+                maxRetriesPerRequest: 0,
+                retryStrategy: () => null, // Don't retry
+                lazyConnect: true
+            })
+            await redis.connect() // Explicit connect for lazyConnect
+            console.log('✅ Cache (Redis): Connected')
+            redis.disconnect()
+        } catch (e) {
+            console.error('❌ Cache (Redis): Failed -', e.message)
+            console.log('   (Redis is likely not running. Install it or check port 6379)')
+        }
+
         console.log(`
 ╔══════════════════════════════════════╗
 ║                                      ║
