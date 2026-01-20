@@ -1,105 +1,89 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import Link from "next/link"
-import { JoinForm } from "@/components/presentations/join-form"
-import { ArrowRight, BarChart3, Users, Zap, CheckCircle, Sparkles, Shield } from 'lucide-react'
-import { APP_CONFIG, UI_TEXT, ROUTES } from "@/lib/config/app-config"
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { APP_CONFIG } from './config/app';
 
-export type Slide = {
-  id: string
-  question: string
-  type: 'multiple_choice' | 'word_cloud' | 'question_only' | 'text' | 'single_choice' | 'scale' | 'ranking' | 'qa' | 'quiz'
-  options: string[]
-  responses: number[]
-  settings: {
-    allowMultiple?: boolean
-    showResults?: boolean
-    timeLimit?: number
-    maxLength?: number
-    required?: boolean
-  }
-  order: number
-}
+const PlayIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
 
-export type Presentation = {
-  id: string
-  title: string
-  code: string
-  created_at: string
-  is_active: boolean
-  current_slide: number
-  show_results: boolean
-  slides: Slide[]
-  settings?: {
-    allowAnonymous?: boolean
-    showResults?: boolean
-    timeLimit?: number
-  }
-}
+const UserIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+);
 
-const iconMap: Record<string, any> = {
-  zap: Zap,
-  chart: BarChart3,
-  users: Users,
-  shield: Shield
-}
+export default function Home() {
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col">
+            {/* Header - Minimal */}
+            <header className="h-16 bg-white/5 backdrop-blur-sm border-b border-white/10 flex items-center px-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                        <span className="text-white font-bold text-xl">Q</span>
+                    </div>
+                    <span className="font-bold text-2xl bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                        Questify
+                    </span>
+                </div>
+                <div className="flex-1" />
+                {/* Secondary Host Link in Header */}
+                <Link
+                    href="/login"
+                    className="flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                >
+                    <UserIcon />
+                    Host Login
+                </Link>
+            </header>
 
-export default function LandingPage() {
-  const { landing } = UI_TEXT
-  const [joinCode, setJoinCode] = useState("")
+            {/* Main Content - Centered & Minimal */}
+            <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center max-w-xl mx-auto"
+                >
+                    <h1 className="text-5xl sm:text-6xl font-bold text-white mb-12 tracking-tight">
+                        Ready to play?
+                    </h1>
 
-  const handleJoinPresentation = async (code: string) => {
-    window.location.href = ROUTES.join(code.trim().toUpperCase())
-  }
+                    <div className="flex flex-col gap-6 w-full max-w-xs mx-auto">
+                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Link
+                                href="/join"
+                                className="flex items-center justify-center gap-3 w-full px-8 py-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl font-bold text-xl hover:shadow-xl hover:shadow-indigo-500/20 transition-all border border-white/10"
+                            >
+                                <PlayIcon />
+                                {APP_CONFIG.ui.joinText}
+                            </Link>
+                        </motion.div>
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex flex-col font-sans">
-      {/* Navigation */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href={ROUTES.home} className="flex items-center gap-2">
-            <Sparkles className="w-8 h-8 text-indigo-600" />
-            <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              {APP_CONFIG.name}
-            </span>
-          </Link>
-          <Link
-            href={ROUTES.manage}
-            className="text-gray-600 hover:text-indigo-600 font-medium transition-colors"
-          >
-            Dashboard
-          </Link>
+                        <div className="relative flex py-2 items-center">
+                            <div className="flex-grow border-t border-slate-700"></div>
+                            <span className="flex-shrink mx-4 text-slate-500 text-sm">Or</span>
+                            <div className="flex-grow border-t border-slate-700"></div>
+                        </div>
+
+                        <Link
+                            href="/login"
+                            className="block text-center text-indigo-300 hover:text-white transition-colors text-sm font-medium"
+                        >
+                            Log in to create & host quizzes
+                        </Link>
+                    </div>
+                </motion.div>
+            </main>
+
+            {/* Footer - Copyright Only */}
+            <footer className="py-6 text-center text-xs text-slate-600">
+                © 2026 Questify
+            </footer>
         </div>
-      </nav>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-8 text-center">
-
-          <div className="space-y-2">
-            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
-              Join the session
-            </h1>
-            <p className="text-lg text-gray-500">
-              Enter the code provided by the presenter to start.
-            </p>
-          </div>
-
-          <div className="bg-white py-8 px-4 shadow-xl rounded-2xl sm:px-10 border border-gray-100">
-            <JoinForm onJoin={handleJoinPresentation} />
-          </div>
-
-          <p className="text-xs text-gray-400">
-            Protected by Questify Secure Systems.
-          </p>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="py-6 text-center text-gray-400 text-sm">
-        <p>© {new Date().getFullYear()} {APP_CONFIG.name}. All rights reserved.</p>
-      </footer>
-    </div>
-  )
+    );
 }

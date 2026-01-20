@@ -1,90 +1,30 @@
-import type { Metadata, Viewport } from 'next'
-import { GeistSans } from 'geist/font/sans'
-import { GeistMono } from 'geist/font/mono'
-import { Analytics } from '@vercel/analytics/next'
-import MobileInstallPrompt from '@/components/MobileInstallPrompt'
+import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'), // Added metadataBase
-  title: 'Questify - Interactive Presentations',
-  description: 'Create and manage interactive presentations with real-time audience engagement',
-  generator: 'Next.js',
-  manifest: '/manifest.json',
-  keywords: ['presentations', 'interactive', 'polls', 'questify', 'audience engagement'],
-  authors: [{ name: 'Questify' }],
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'Questify',
-    startupImage: '/icon-512x512.png',
-  },
-  formatDetection: {
-    telephone: false,
-  },
-  openGraph: {
-    type: 'website',
-    siteName: 'Questify',
-    title: 'Questify - Interactive Presentations',
-    description: 'Create and manage interactive presentations with real-time audience engagement',
-  },
-  twitter: {
-    card: 'summary',
-    title: 'Questify - Interactive Presentations',
-    description: 'Create and manage interactive presentations with real-time audience engagement',
-  },
-}
-
-export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#000000' },
-  ],
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: 'cover',
+    title: 'Questify - Create Interactive Quizzes',
+    description: 'Create engaging, interactive quizzes with Questify. Modern quiz editor with beautiful themes and real-time collaboration.',
+    keywords: 'quiz, questify, interactive, education, learning, quiz maker',
 }
 
 export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
-  return (
-    <html lang="en">
-      <head>
-        {/* PWA Meta Tags */}
-        <meta name="application-name" content="Questify" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Questify" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="msapplication-config" content="/browserconfig.xml" />
-        <meta name="msapplication-TileColor" content="#000000" />
-        <meta name="msapplication-tap-highlight" content="no" />
-        
-        {/* Apple Touch Icons */}
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icon-192x192.png" />
-        
-        {/* Favicon */}
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="shortcut icon" href="/favicon.ico" />
-        
-        {/* Splash screens for iOS */}
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <link rel="apple-touch-startup-image" href="/icon-512x512.png" />
-      </head>
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {children}
-        <MobileInstallPrompt />
-        <Analytics />
-      </body>
-    </html>
-  )
+    children,
+}: {
+    children: React.ReactNode
+}) {
+    return (
+        <html lang="en" suppressHydrationWarning>
+            <head>
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+                <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+                <meta name="theme-color" content="#0d9488" media="(prefers-color-scheme: light)" />
+                <meta name="theme-color" content="#134e4a" media="(prefers-color-scheme: dark)" />
+            </head>
+            <body>{children}</body>
+        </html>
+    )
 }
+
+

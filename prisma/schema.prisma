@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String   // Hashed password
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  games     Game[]
+  results   Result[]
+}
+
+model Game {
+  id          String   @id @default(uuid())
+  hostId      String
+  host        User     @relation(fields: [hostId], references: [id])
+  title       String
+  status      String   @default("WAITING") // WAITING, PLAYING, FINISHED
+  createdAt   DateTime @default(now())
+  
+  questions   Question[]
+  results     Result[]
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  text      String
+  options   String   // JSON string of options
+  correct   Int      // Index of correct option
+  timeLimit Int      @default(30)
+}
+
+model Result {
+  id        String   @id @default(uuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id])
+  userId    String?  // Nullable for anonymous players if we allow that later
+  user      User?    @relation(fields: [userId], references: [id])
+  playerName String  // Display name used in the game
+  score     Int
+  accuracy  Float
+  createdAt DateTime @default(now())
+}
