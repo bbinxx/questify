@@ -51,3 +51,26 @@ Since development uses SQLite and production uses PostgreSQL, we use a separate 
 - [ ] `REDIS_URL` matches your hosted Redis.
 - [ ] `npx prisma db push --schema=prisma/prod.schema.prisma` executed successfully.
 - [ ] Application logs show "✅ Database (Prisma): Connected" and "✅ Cache (Redis): Connected".
+
+## 6. Docker Deployment (Recommended)
+This approach creates a self-contained container with your app, custom server, and dependencies, ready for any cloud provider (Railway, AWS, DigitalOcean, etc.).
+
+1. **Build the Image**:
+   ```bash
+   docker build -t questify-app .
+   ```
+
+2. **Run the Container**:
+   You must pass the environment variables to the container.
+   ```bash
+   docker run -p 3000:3000 \
+     -e DATABASE_URL="Your_Prod_Postgres_URL" \
+     -e REDIS_URL="Your_Prod_Redis_URL" \
+     questify-app
+   ```
+
+3. **Deploy to Railway/Render/Heroku**:
+   - Connect your GitHub repo.
+   - The provider should automatically detect the `Dockerfile`.
+   - Add your environment variables in the provider's dashboard.
+   - The app will build and start automatically using the settings in `Dockerfile`.
