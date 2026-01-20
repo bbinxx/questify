@@ -1,121 +1,248 @@
-# Questify
+# 🎮 Questify - Interactive Quiz Game Platform
 
-**Interactive Presentations & Real-time Audience Engagement Platform**
+A beautiful, real-time multiplayer quiz game built with Next.js and Socket.IO. Create engaging quiz experiences with floating avatars, live scoring, and stunning visual effects.
 
-Questify is a modern web application for creating and hosting interactive presentations. Engage your audience with live polls, quizzes, Q&A sessions, and word clouds in real-time. Built with Next.js 14, Supabase, and Socket.IO.
+![Questify Banner](https://img.shields.io/badge/Next.js-14.2-black?style=for-the-badge&logo=next.js)
+![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-green?style=for-the-badge&logo=socket.io)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue?style=for-the-badge&logo=typescript)
 
 ## ✨ Features
 
-- **Interactive Slide Types**:
-  - **Multiple Choice**: Real-time voting with bar charts.
-  - **Word Cloud**: Visual representation of audience responses.
-  - **Q&A**: Live questions with upvoting capabilities.
-  - **Quiz Mode**: Gamified questions with points and timers.
-  - **Scales & Ranking**: gather opinion data.
-  - **Text & Content**: Standard slides for information.
+- 🎯 **Real-Time Multiplayer** - Up to 100 players per game
+- 🎨 **Beautiful UI** - Modern design with glassmorphism and smooth animations
+- 🔥 **Floating Avatars** - Dynamic physics-based player representations
+- 📊 **Live Leaderboard** - Real-time score tracking with podium view
+- 🎭 **Funny Messages** - Random witty phrases during leaderboard phases
+- ⚡ **Optimized Performance** - useMemo, useCallback, and efficient state management
+- 🌊 **Particle Effects** - Confetti for winners, rain for losers
+- 📱 **Fully Responsive** - Works on desktop, tablet, and mobile
+- 🎵 **Game Phases** - Reading, Answering, Results, and Leaderboard phases
+- 🏆 **Streaks & Bonuses** - Reward consecutive correct answers
 
-- **Real-time Engagement**:
-  - Instant updates via Socket.IO.
-  - Live vote counting and result visualization.
-  - Presenter controls (next/prev slide, show/hide results).
-  - Mobile-responsive participant view.
-
-- **Platform**:
-  - **Authentication**: Secure login via Supabase Auth.
-  - **PWA Support**: Installable on mobile devices.
-  - **Analytics**: Track participation and response rates.
-  - **Theming**: Custom themes and dark mode support.
-
-## 🛠️ Tech Stack
-
-- **Frontend**: Next.js 14 (App Router), React, TypeScript, Tailwind CSS, Radix UI.
-- **Backend Service**: Supabase (PostgreSQL, Authentication).
-- **Real-time Server**: Custom Node.js + Socket.IO server (Express).
-- **Icons**: Lucide React.
-- **Visuals**: Framer Motion / Tailwind Animate for smooth transitions.
-
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- [npm](https://www.npmjs.com/) or pnpm
-- A [Supabase](https://supabase.com/) project
+- Node.js 18+ installed
+- npm or yarn package manager
 
 ### Installation
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/bbinxx/questify.git
-    cd questify
-    ```
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd questify
+   ```
 
-2.  **Install dependencies**
-    ```bash
-    npm install
-    ```
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-3.  **Environment Setup**
-    Create a `.env.local` file in the root directory and add the following:
+3. **Start the development server**
+   ```bash
+   npm run dev
+   ```
 
-    ```env
-    # Supabase (Get these from your Supabase Project Settings)
-    NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-    SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+4. **Open in browser**
+   - Home: `http://localhost:3000`
+   - Presenter View: `http://localhost:3000/present`
+   - Join Game: `http://localhost:3000/join`
 
-    # Socket.IO Server Configuration
-    SOCKET_PORT=3001
-    NEXT_PUBLIC_APP_URL=http://localhost:3000
-    # Use the same port as SOCKET_PORT above
-    NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
-    ```
+## 🎮 How to Play
 
-4.  **Database Setup**
-    Run the provided setup SQL script in your Supabase SQL Editor to create the necessary tables, functions, and policies.
+### For Hosts (Presenters)
 
-    - Copy the contents of `supabase_setup.sql` located in the root directory.
-    - Paste it into the SQL Editor of your Supabase dashboard and run it.
-    - (Optional) Run `reset_schema.sql` if you need to start fresh.
+1. Go to `/present`
+2. Share the **Game PIN** (e.g., 482519) with participants
+3. Wait for players to join (you'll see their floating avatars!)
+4. Click **"Start Game"** when ready
+5. Questions will advance through phases automatically:
+   - **Reading Phase** (5s) - Preview question
+   - **Answering Phase** (10-15s) - Players answer
+   - **Results Phase** (5s) - Show correct answer
+   - **Leaderboard** - Show top 5 players
+6. Click **"Next"** to continue or **"End Game"** to finish
 
-### Running the Application
+### For Players (Participants)
 
-To run both the Next.js frontend and the Socket.IO server concurrently:
+1. Go to `/join`
+2. Enter the **Game PIN**
+3. Create your profile (name + avatar)
+4. Click **"Ready!"** to join
+5. Answer questions as fast as possible for bonus points!
+6. See your results and final ranking
 
-```bash
-npm run dev:full
+## 🏗️ Project Structure
+
+```
+questify/
+├── app/
+│   ├── components/
+│   │   └── game/
+│   │       ├── AnswerGrid.tsx    # Answer options grid
+│   │       └── QuestionCard.tsx  # Question display
+│   ├── config/
+│   │   └── game.ts               # Game configuration
+│   ├── data/
+│   │   └── quiz.js               # Quiz questions
+│   ├── join/
+│   │   └── page.tsx              # Participant view
+│   ├── present/
+│   │   └── page.tsx              # Presenter view
+│   ├── globals.css               # Global styles
+│   ├── layout.tsx                # Root layout
+│   └── page.tsx                  # Home page
+├── server.js                     # Socket.IO server
+├── package.json
+└── README.md
 ```
 
-Or run them in separate terminals:
+## ⚙️ Configuration
+
+### Game Settings (`app/config/game.ts`)
+
+```typescript
+export const GAME_CONFIG = {
+    TIMERS: {
+        READING_PHASE: 5,      // seconds
+        ANSWERING_PHASE: 15,   // seconds
+        RESULT_PHASE: 5        // seconds
+    },
+    SCORING: {
+        BASE_POINTS: 500,
+        MAX_TIME_BONUS: 500,
+        STREAK_BONUS: 100,
+        MAX_STREAK_BONUS: 500
+    },
+    FLOATING: {
+        MIN_SIZE: 80,          // pixels
+        MAX_SIZE: 150,         // pixels
+        MIN_SPEED: 0.3,        // pixels/frame
+        MAX_SPEED: 1.5         // pixels/frame
+    }
+}
+```
+
+### Server Config (`server.js`)
+
+```javascript
+const FLOATING_CONFIG = {
+    MIN_SIZE: 80,
+    MAX_SIZE: 150,
+    MIN_SPEED: 0.3,
+    MAX_SPEED: 1.5
+}
+```
+
+## 🎨 Customization
+
+### Adding Questions
+
+Edit `app/data/quiz.js`:
+
+```javascript
+{
+    id: 'q11',
+    question: "Your question here?",
+    time: 15,
+    answers: [
+        { text: "Option 1", color: "bg-rose-500", icon: "△", correct: true },
+        { text: "Option 2", color: "bg-blue-500", icon: "◇" },
+        { text: "Option 3", color: "bg-amber-500", icon: "○" },
+        { text: "Option 4", color: "bg-emerald-500", icon: "□" }
+    ]
+}
+```
+
+### Changing Funny Messages
+
+Edit `app/join/page.tsx` and update the `FUNNY_PHRASES` array.
+
+## 🛠️ Tech Stack
+
+- **Frontend**: Next.js 14, React 18, TypeScript
+- **Styling**: Tailwind CSS 4
+- **Animations**: Framer Motion
+- **Effects**: Canvas Confetti
+- **Real-time**: Socket.IO
+- **Dev Tools**: Nodemon (auto-restart)
+
+## 📊 Scoring System
+
+- **Base Points**: 500 points for correct answer
+- **Speed Bonus**: Up to 500 points based on answer speed
+- **Streak Bonus**: 100 points per consecutive correct (max 500)
+- **Total Possible**: Up to 1,500 points per question
+
+## 🐛 Debugging
+
+The app includes extensive console logging:
+
+**Client-side logs:**
+- `✅ Connected to server`
+- `🎮 Attempting to join game...`
+- `📊 Game state: <state>`
+
+**Server-side logs:**
+- `🎮 Server received join-room`
+- `✨ Creating new player`
+- `📤 Emitting room-joined to client`
+
+## 🚦 Development Scripts
 
 ```bash
-# Terminal 1: Socket Server
-npm run socket:dev
-
-# Terminal 2: Next.js Frontend
+# Run with auto-reload (recommended)
 npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+
+# Run Next.js dev server only
+npm run dev:next
 ```
 
-- **Frontend**: [http://localhost:3000](http://localhost:3000)
-- **Socket Server**: [http://localhost:3001](http://localhost:3001)
+## 🔧 Troubleshooting
 
-## 📂 Project Structure
+### Port already in use
+Change port in `server.js`:
+```javascript
+const port = 3001  // Change from 3000
+```
 
-- `app/` - Next.js App Router pages and layouts.
-- `components/` - Reusable UI components and slide templates.
-- `lib/` - Utilities, database helpers, and configuration.
-- `server/` - Socket.IO server implementation (`socket-server.ts`).
-- `supabase_setup.sql` - Complete database schema definition.
-- `public/` - Static assets and PWA icons.
+### Players can't join
+1. Check if server is running (`npm run dev`)
+2. Verify game PIN matches
+3. Check browser console for errors
+4. Ensure Socket.IO connection (look for 🟢 indicator)
+
+### Nodemon not restarting
+Clear nodemon cache:
+```bash
+npx nodemon --cls server.js
+```
+
+## 📝 License
+
+MIT License - feel free to use this project for learning or commercial purposes!
 
 ## 🤝 Contributing
 
-1.  Fork the repository.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
+Contributions welcome! Check out `PROPOSED_FEATURES.md` for ideas.
 
-## 📄 License
+## 🎯 Roadmap
 
-This project is licensed under the MIT License.
+See `PROPOSED_FEATURES.md` for planned features including:
+- Battle Royale mode
+- Custom themes
+- Sound effects
+- Question image support
+- Power-ups
+- And much more!
+
+---
+
+Built with ❤️ using Next.js & Socket.IO
