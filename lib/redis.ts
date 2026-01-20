@@ -1,0 +1,22 @@
+import Redis from 'ioredis';
+
+const globalForRedis = global as unknown as { redis: Redis };
+
+const getRedisUrl = () => {
+    if (process.env.REDIS_URL) {
+        return process.env.REDIS_URL;
+    }
+    return 'redis://localhost:6379';
+};
+
+export const redis =
+    globalForRedis.redis ||
+    new Redis(getRedisUrl(), {
+        maxRetriesPerRequest: 3,
+        retryStrategy(times) {
+            const delay = Math.min(times * 50, 2000);
+            return delay;
+        },
+    });
+
+if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis;
