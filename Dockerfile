@@ -19,10 +19,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma Client for Production
-# Remove default schema to prevent accidental generation of SQLite client
-RUN rm prisma/schema.prisma
-RUN npx prisma generate --schema=prisma/prod.schema.prisma
+# Firebase and Cloudflare R2 are used natively without Prisma generation
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry

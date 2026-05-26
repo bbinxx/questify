@@ -1,6 +1,6 @@
 'use server'
 
-import { prisma } from '@/lib/prisma'
+import { DatabaseService } from '@/lib/db'
 import { cookies } from 'next/headers'
 
 export async function createQuiz(title: string, questions: any[]) {
@@ -19,22 +19,8 @@ export async function createQuiz(title: string, questions: any[]) {
     }
 
     try {
-        const game = await prisma.game.create({
-            data: {
-                title,
-                hostId: userId,
-                status: 'WAITING',
-                questions: {
-                    create: questions.map((q) => ({
-                        text: q.text,
-                        options: JSON.stringify(q.answers),
-                        correct: q.correctAnswer,
-                        timeLimit: parseInt(q.timeLimit) || 20
-                    }))
-                }
-            }
-        })
-        return { success: true, gameId: game.id }
+        const gameId = await DatabaseService.createGame(title, userId, questions);
+        return { success: true, gameId }
     } catch (error) {
         console.error('Create quiz error:', error)
         return { error: 'Failed to create quiz', success: false }
@@ -49,12 +35,7 @@ export async function getQuiz(id: string) {
     }
 
     try {
-        const quiz = await prisma.game.findUnique({
-            where: { id },
-            include: {
-                questions: true
-            }
-        })
+        const quiz = await DatabaseService.getGame(id);
 
         if (!quiz) {
             return { error: 'Quiz not found', success: false }
@@ -79,30 +60,31 @@ export async function updateQuiz(id: string, title: string, questions: any[]) {
     }
 
     try {
-        // Simple strategy: delete old questions and create new ones
-        // In a real app, you'd want to update existing ones to preserve IDs if needed
-        await prisma.question.deleteMany({
-            where: { gameId: id }
-        })
-
-        const game = await prisma.game.update({
-            where: { id },
-            data: {
-                title,
-                questions: {
-                    create: questions.map((q) => ({
-                        text: q.text,
-                        options: JSON.stringify(q.answers),
-                        correct: q.correctAnswer,
-                        timeLimit: parseInt(q.timeLimit) || 20
-                    }))
-                }
-            }
-        })
-
-        return { success: true, gameId: game.id }
+        await DatabaseService.updateGame(id, title, questions);
+        return { success: true, gameId: id }
     } catch (error) {
         console.error('Update quiz error:', error)
         return { error: 'Failed to update quiz', success: false }
+    }
+}
+
+export async function deleteQuiz(id: string) {
+    const userId = cookies().get('userId')?.value
+
+    if (!userId) {
+        return { error: 'Unauthorized', success: false }
+    }
+
+    try {
+        const quiz = await DatabaseService.getGame(id)
+        if (quiz?.hostId !== userId) {
+            return { error: 'Unauthorized to delete this quiz', success: false }
+        }
+
+        await DatabaseService.deleteGame(id)
+        return { success: true }
+    } catch (error) {
+        console.error('Delete quiz error:', error)
+        return { error: 'Failed to delete quiz', success: false }
     }
 }

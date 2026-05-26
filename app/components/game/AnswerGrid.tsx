@@ -63,6 +63,7 @@ export default function AnswerGrid({
                                 filter: `grayscale(${grayscale})`
                             }}
                             whileTap={!disabled && !revealed ? { scale: 0.98 } : {}}
+                            whileHover={!disabled && !revealed ? { scale: 1.02, y: -2 } : {}}
                             onClick={() => !disabled && onAnswerClick && onAnswerClick(i)}
                             disabled={disabled}
                             className={`

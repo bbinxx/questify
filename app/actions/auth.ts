@@ -1,6 +1,6 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { DatabaseService } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -17,25 +17,17 @@ export async function signup(prevState: any, formData: FormData) {
     }
 
     try {
-        const existingUser = await prisma.user.findUnique({
-            where: { username },
-        });
+        const existingUser = await DatabaseService.getUserByUsername(username);
 
         if (existingUser) {
             return { error: 'Username already exists', success: false };
         }
 
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+        const newUser = await DatabaseService.createUser(username, hashedPassword);
 
-        const user = await prisma.user.create({
-            data: {
-                username,
-                password: hashedPassword,
-            },
-        });
-
-        // Create session (simple cookie for now)
-        cookies().set('userId', user.id, {
+        // Create session
+        cookies().set('userId', newUser.id, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             maxAge: SESSION_DURATION,
@@ -58,11 +50,9 @@ export async function login(prevState: any, formData: FormData) {
     }
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { username },
-        });
+        const user = await DatabaseService.getUserByUsername(username);
 
-        if (!user) {
+        if (!user || !user.password) {
             return { error: 'Invalid credentials', success: false };
         }
 

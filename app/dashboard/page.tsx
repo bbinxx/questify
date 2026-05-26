@@ -1,8 +1,9 @@
-import { prisma } from '@/lib/prisma';
+import { DatabaseService } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { logout } from '@/app/actions/auth';
+import DeleteGameButton from './components/DeleteGameButton';
 
 // Icons
 const PlusIcon = () => (
@@ -37,125 +38,122 @@ export default async function DashboardPage() {
         redirect('/login');
     }
 
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-            games: {
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    _count: {
-                        select: { questions: true }
-                    }
-                }
-            }
-        }
-    });
+    const user = await DatabaseService.getUserWithGames(userId);
 
     if (!user) {
         redirect('/login');
     }
 
     return (
-        <div className="h-screen overflow-y-auto bg-slate-50 dark:bg-slate-950 flex flex-col">
+        <div className="h-screen overflow-y-auto bg-[#0B0F19] flex flex-col relative text-slate-200">
+            {/* Background Glows */}
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[128px] pointer-events-none" />
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[128px] pointer-events-none" />
+
             {/* Header */}
-            <header className="h-16 flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-6 justify-between sticky top-0 z-10">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/20">
-                        <span className="text-white font-bold text-xl">Q</span>
+            <header className="h-20 flex-shrink-0 bg-[#0B0F19]/80 backdrop-blur-xl border-b border-white/10 flex items-center px-8 justify-between sticky top-0 z-10">
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.4)]">
+                        <span className="text-white font-black text-xl">Q</span>
                     </div>
-                    <span className="font-bold text-xl text-slate-900 dark:text-white tracking-tight">Questify</span>
+                    <span className="font-black text-2xl tracking-tight text-white">Questify</span>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400 hidden sm:block">
-                        Hi, {user.username}
+                <div className="flex items-center gap-6">
+                    <Link href="/dashboard" className="text-sm font-bold text-white hidden sm:block hover:text-indigo-400 transition-colors">
+                        Library
+                    </Link>
+                    <Link href="/dashboard/analytics" className="text-sm font-bold text-slate-400 hidden sm:block hover:text-indigo-400 transition-colors">
+                        Analytics
+                    </Link>
+                    <div className="h-6 w-px bg-white/10 hidden sm:block" />
+                    <span className="text-sm font-bold text-indigo-300 hidden sm:block">
+                        {user.username}
                     </span>
                     <form action={logout}>
-                        <button className="text-sm font-semibold text-rose-500 hover:text-rose-600 transition-colors">
+                        <button className="text-sm font-bold text-slate-400 hover:text-rose-400 transition-colors">
                             Logout
                         </button>
                     </form>
                 </div>
             </header>
 
-            <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <main className="flex-1 max-w-7xl mx-auto w-full p-6 sm:p-10 relative z-0">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12">
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">My Library</h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage and host your interactive quizzes</p>
+                        <h1 className="text-4xl font-black text-white tracking-tight">My Library</h1>
+                        <p className="text-slate-400 mt-2 font-medium">Manage and host your interactive live events.</p>
                     </div>
                     <Link
                         href="/create"
-                        className="btn btn-primary inline-flex items-center justify-center gap-2 px-6 py-2.5 shadow-lg shadow-primary-500/20"
+                        className="inline-flex items-center justify-center gap-3 px-8 py-4 bg-white text-indigo-950 font-black rounded-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-all duration-300"
                     >
                         <PlusIcon />
-                        <span>Create Quiz</span>
+                        <span>Create New Event</span>
                     </Link>
                 </div>
 
                 {user.games.length === 0 ? (
-                    <div className="text-center py-24 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <QuestionIcon />
+                    <div className="text-center py-32 bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/10 shadow-2xl">
+                        <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span className="text-4xl text-indigo-400">✨</span>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No quizzes yet</h3>
-                        <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-xs mx-auto">
-                            Create your first quiz and start engaging your audience today.
+                        <h3 className="text-2xl font-black text-white mb-3">No events yet</h3>
+                        <p className="text-slate-400 mb-8 max-w-md mx-auto text-lg">
+                            Your library is empty. Create your first live event to start engaging your audience.
                         </p>
-                        <Link
-                            href="/create"
-                            className="text-primary-600 dark:text-primary-400 font-bold hover:underline"
-                        >
-                            Create your first quiz →
+                        <Link href="/create" className="text-indigo-400 font-bold hover:text-white transition-colors">
+                            Start building →
                         </Link>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                         {user.games.map((game) => (
                             <div
                                 key={game.id}
-                                className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:border-primary-500/50 hover:shadow-xl hover:shadow-primary-500/5 transition-all duration-300 flex flex-col"
+                                className="group bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 overflow-hidden hover:border-indigo-500/50 hover:bg-white/10 hover:shadow-[0_0_40px_rgba(99,102,241,0.15)] transition-all duration-500 flex flex-col relative"
                             >
-                                <div className="p-5 flex-1">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${game.status === 'FINISHED' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' :
-                                                game.status === 'PLAYING' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30' :
-                                                    'bg-amber-100 text-amber-600 dark:bg-amber-950/30'
+                                <div className="p-8 flex-1">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${game.status === 'FINISHED' ? 'bg-slate-800 text-slate-400' :
+                                                game.status === 'PLAYING' ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-500/30' :
+                                                    'bg-amber-900/50 text-amber-400 border border-amber-500/30'
                                             }`}>
                                             {game.status}
                                         </span>
-                                        <span className="text-[10px] font-medium text-slate-400 uppercase">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                                             {new Date(game.createdAt).toLocaleDateString()}
                                         </span>
                                     </div>
 
-                                    <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-4 line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                                    <h3 className="font-black text-2xl text-white mb-4 line-clamp-2 leading-tight">
                                         {game.title}
                                     </h3>
 
-                                    <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400">
-                                        <div className="flex items-center gap-1.5 text-xs font-medium">
+                                    <div className="flex items-center gap-4 text-indigo-300">
+                                        <div className="flex items-center gap-2 text-sm font-bold bg-indigo-500/10 px-3 py-1.5 rounded-lg">
                                             <QuestionIcon />
                                             <span>{game._count.questions} Questions</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+                                <div className="p-4 bg-black/20 border-t border-white/5 flex gap-3">
                                     <Link
                                         href={`/present/${game.id}`}
-                                        className="btn btn-primary flex-1 py-2 text-xs flex items-center justify-center gap-2"
+                                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 transition-colors"
                                     >
                                         <PlayIcon />
-                                        Host
+                                        HOST LIVE
                                     </Link>
                                     <Link
                                         href={`/edit/${game.id}`}
-                                        className="btn btn-outline px-4 py-2 text-xs flex items-center justify-center gap-2"
+                                        className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
                                     >
                                         <EditIcon />
                                         Edit
                                     </Link>
+                                    <DeleteGameButton gameId={game.id} />
                                 </div>
                             </div>
                         ))}

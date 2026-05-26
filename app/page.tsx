@@ -19,70 +19,82 @@ const UserIcon = () => (
 
 export default function Home() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col">
-            {/* Header - Minimal */}
-            <header className="h-16 bg-white/5 backdrop-blur-sm border-b border-white/10 flex items-center px-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <span className="text-white font-bold text-xl">Q</span>
+        <div className="min-h-screen bg-[#0B0F19] overflow-hidden flex flex-col relative font-sans text-slate-200">
+            {/* Background Glows */}
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/30 rounded-full blur-[128px] pointer-events-none" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[128px] pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0)_0%,#0B0F19_80%)] pointer-events-none z-0" />
+
+            {/* Grid Pattern */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+
+            {/* Header */}
+            <header className="h-24 relative z-10 flex items-center px-8 md:px-16 justify-between">
+                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.5)]">
+                        <span className="text-white font-black text-2xl">Q</span>
                     </div>
-                    <span className="font-bold text-2xl bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                    <span className="font-black text-3xl tracking-tight text-white">
                         Questify
                     </span>
-                </div>
-                <div className="flex-1" />
-                {/* Secondary Host Link in Header */}
-                <Link
-                    href="/login"
-                    className="flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    <UserIcon />
-                    Host Login
-                </Link>
+                </motion.div>
+                
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                    <Link
+                        href="/login"
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 text-white font-bold transition-all hover:scale-105"
+                    >
+                        <UserIcon />
+                        Host Login
+                    </Link>
+                </motion.div>
             </header>
 
-            {/* Main Content - Centered & Minimal */}
-            <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
+            {/* Main Content */}
+            <main className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5 }}
-                    className="text-center max-w-xl mx-auto"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="text-center max-w-4xl mx-auto w-full"
                 >
-                    <h1 className="text-5xl sm:text-6xl font-bold text-white mb-12 tracking-tight">
-                        Ready to play?
-                    </h1>
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.8 }} 
+                        animate={{ opacity: 1, scale: 1 }} 
+                        transition={{ delay: 0.2, duration: 0.8, type: 'spring' }}
+                        className="inline-block mb-6 px-4 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 font-black text-sm tracking-widest uppercase"
+                    >
+                        The Ultimate Live Event Engine
+                    </motion.div>
 
-                    <div className="flex flex-col gap-6 w-full max-w-xs mx-auto">
-                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <h1 className="text-6xl sm:text-7xl md:text-8xl font-black text-white mb-8 tracking-tighter leading-none drop-shadow-2xl">
+                        Engage Your <br className="hidden md:block"/>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
+                            Audience Instantly
+                        </span>
+                    </h1>
+                    
+                    <p className="text-xl md:text-2xl text-slate-400 font-medium mb-16 max-w-2xl mx-auto leading-relaxed">
+                        Join millions of players in real-time cinematic quizzes. No apps to download, just pure rhythmic engagement.
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-6 w-full max-w-md mx-auto">
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full">
                             <Link
                                 href="/join"
-                                className="flex items-center justify-center gap-3 w-full px-8 py-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl font-bold text-xl hover:shadow-xl hover:shadow-indigo-500/20 transition-all border border-white/10"
+                                className="flex items-center justify-center gap-3 w-full px-8 py-6 bg-white text-indigo-950 rounded-2xl font-black text-2xl hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] transition-all"
                             >
                                 <PlayIcon />
-                                {APP_CONFIG.ui.joinText}
+                                PLAY NOW
                             </Link>
                         </motion.div>
-
-                        <div className="relative flex py-2 items-center">
-                            <div className="flex-grow border-t border-slate-700"></div>
-                            <span className="flex-shrink mx-4 text-slate-500 text-sm">Or</span>
-                            <div className="flex-grow border-t border-slate-700"></div>
-                        </div>
-
-                        <Link
-                            href="/login"
-                            className="block text-center text-indigo-300 hover:text-white transition-colors text-sm font-medium"
-                        >
-                            Log in to create & host quizzes
-                        </Link>
                     </div>
                 </motion.div>
             </main>
 
-            {/* Footer - Copyright Only */}
-            <footer className="py-6 text-center text-xs text-slate-600">
-                © 2026 Questify
+            {/* Footer */}
+            <footer className="py-8 relative z-10 text-center text-sm font-bold text-slate-600 tracking-widest uppercase">
+                © {new Date().getFullYear()} Questify Live
             </footer>
         </div>
     );

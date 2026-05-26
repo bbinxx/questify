@@ -134,7 +134,9 @@ interface Question {
     timeLimit: string
     points: string
     answerType: string
+    questionType: 'MULTIPLE_CHOICE' | 'POLL' | 'TRUE_FALSE' | 'TYPE_ANSWER'
     selectedAnswers: number[]
+    mediaUrl?: string
 }
 
 const DEFAULT_QUESTION: Question = {
@@ -144,6 +146,7 @@ const DEFAULT_QUESTION: Question = {
     timeLimit: '20 seconds',
     points: 'Standard',
     answerType: 'Single select',
+    questionType: 'MULTIPLE_CHOICE',
     selectedAnswers: []
 }
 
@@ -152,6 +155,31 @@ export default function QuizCreator() {
     const [quizTitle, setQuizTitle] = useState('')
     const [questions, setQuestions] = useState<Question[]>([{ ...DEFAULT_QUESTION, id: '1' }])
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setIsUploadingMedia(true)
+        const formData = new FormData()
+        formData.append('file', file)
+
+        try {
+            const { uploadMedia } = await import('../actions/upload')
+            const res = await uploadMedia(formData)
+            if (res.success && res.url) {
+                updateCurrentQuestion({ mediaUrl: res.url })
+            } else {
+                alert(res.error || 'Failed to upload file')
+            }
+        } catch (error) {
+            console.error('File upload error:', error)
+            alert('An error occurred during file upload')
+        } finally {
+            setIsUploadingMedia(false)
+        }
+    }
 
     // UI State
     const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -229,7 +257,9 @@ export default function QuizCreator() {
                 text: q.text,
                 answers: q.answers,
                 correctAnswer: q.selectedAnswers[0] || 0, // Default to 0 if none selected
-                timeLimit: q.timeLimit
+                timeLimit: q.timeLimit,
+                type: q.questionType,
+                mediaUrl: q.mediaUrl || ''
             }))
 
             const result = await createQuiz(quizTitle, formattedQuestions)
@@ -264,9 +294,9 @@ export default function QuizCreator() {
             )}
 
             {/* Header */}
-            <header className="h-14 flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-3 gap-2">
+            <header className="h-14 flex-shrink-0 bg-[#0B0F19]/80 backdrop-blur-xl border-b border-white/10 flex items-center px-3 gap-2">
                 <button
-                    className="lg:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300"
+                    className="lg:hidden p-2 hover:bg-white/10 rounded-lg text-slate-300"
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                 >
                     <MenuIcon />
@@ -282,7 +312,7 @@ export default function QuizCreator() {
                 <input
                     type="text"
                     placeholder="Enter quiz title..."
-                    className="flex-1 max-w-[200px] px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 hidden md:block"
+                    className="flex-1 max-w-[200px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 hidden md:block"
                     value={quizTitle}
                     onChange={(e) => setQuizTitle(e.target.value)}
                 />
@@ -290,13 +320,7 @@ export default function QuizCreator() {
                 <div className="flex-1" />
 
                 <div className="flex items-center gap-1.5">
-                    <button
-                        onClick={() => setDarkMode(!darkMode)}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 transition-colors"
-                        title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                    >
-                        {darkMode ? <SunIcon /> : <MoonIcon />}
-                    </button>
+
                     <button className="btn-primary flex items-center gap-1.5 text-xs px-3 py-1.5">
                         <PaletteIcon />
                         <span className="hidden sm:inline">Themes</span>
@@ -313,25 +337,25 @@ export default function QuizCreator() {
             </header>
 
             {/* Main Content - Fixed Height Container */}
-            <div className="flex-1 flex overflow-hidden bg-slate-100 dark:bg-slate-950">
+            <div className="flex-1 flex overflow-hidden bg-[#0B0F19] text-white">
                 {/* Sidebar */}
                 <aside className={`
                     fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto
                     w-56 lg:w-44 xl:w-52
-                    bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800
+                    bg-[#0B0F19]/80 backdrop-blur-xl border-r border-white/10
                     flex flex-col p-3 gap-2
                     transform transition-transform duration-300 ease-out
                     ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
                 `}>
                     <button
-                        className="lg:hidden absolute top-3 right-3 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"
+                        className="lg:hidden absolute top-3 right-3 p-1.5 hover:bg-white/10 rounded-full text-slate-500"
                         onClick={() => setSidebarOpen(false)}
                     >
                         <CloseIcon />
                     </button>
 
                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide font-serif">
+                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide font-serif">
                             Questions
                         </span>
                         <span className="text-xs font-medium text-primary-600 dark:text-primary-400">
@@ -348,20 +372,20 @@ export default function QuizCreator() {
                                     relative p-2.5 rounded-lg border-2 cursor-pointer transition-colors
                                     ${idx === currentQuestionIndex
                                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/50'
-                                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'}
+                                        : 'border-white/10 hover:border-slate-300 dark:hover:border-slate-700'}
                                 `}
                             >
                                 <span className={`
                                     absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full 
                                     text-[10px] font-bold flex items-center justify-center
-                                    ${idx === currentQuestionIndex ? 'bg-primary-600 text-white' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}
+                                    ${idx === currentQuestionIndex ? 'bg-primary-600 text-white' : 'bg-white/10 text-slate-300'}
                                 `}>
                                     {idx + 1}
                                 </span>
-                                <div className={`h-10 rounded flex items-center justify-center ${idx === currentQuestionIndex ? 'bg-primary-600 dark:bg-primary-700' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                                <div className={`h-10 rounded flex items-center justify-center ${idx === currentQuestionIndex ? 'bg-primary-600 dark:bg-primary-700' : 'bg-white/5'}`}>
                                     <QuestionIcon />
                                 </div>
-                                <p className="mt-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-300 text-center truncate">
+                                <p className="mt-1.5 text-[10px] font-medium text-slate-300 text-center truncate">
                                     {q.text || 'New Question'}
                                 </p>
                             </div>
@@ -384,62 +408,101 @@ export default function QuizCreator() {
                 {/* Center Panel - No Scroll */}
                 <main className="flex-1 flex flex-col overflow-hidden p-2 sm:p-3 lg:p-4">
                     <div className="flex-1 flex flex-col overflow-hidden max-w-4xl mx-auto w-full">
-                        <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                        <div className="flex-1 flex flex-col overflow-hidden bg-[#0B0F19]/80 backdrop-blur-xl rounded-lg border border-white/10">
                             {/* Question Header */}
                             <div className="flex-shrink-0 bg-primary-600 dark:bg-primary-700 p-3 sm:p-4">
                                 <input
                                     type="text"
                                     placeholder="Start typing your question..."
-                                    className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-800 text-sm sm:text-base font-medium text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-300"
+                                    className="w-full px-3 py-2.5 rounded-lg bg-white/5 text-sm sm:text-base font-medium text-white font-bold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-300"
                                     value={currentQuestion.text}
                                     onChange={(e) => updateCurrentQuestion({ text: e.target.value })}
                                 />
                             </div>
 
-                            {/* Media Upload - Compact */}
-                            <div className="flex-shrink-0 mx-2 sm:mx-3 mt-2 sm:mt-3 p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-center hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer group">
-                                <div className="flex justify-center gap-3 mb-1.5">
-                                    <span className="text-slate-400 group-hover:text-primary-500 transition-colors"><CameraIcon /></span>
-                                    <span className="text-slate-400 group-hover:text-primary-500 transition-colors"><VideoIcon /></span>
-                                    <span className="text-slate-400 group-hover:text-primary-500 transition-colors"><MusicIcon /></span>
+                            {/* Media Upload - Compact and Functional */}
+                            {currentQuestion.mediaUrl ? (
+                                <div className="flex-shrink-0 mx-2 sm:mx-3 mt-2 sm:mt-3 p-3 rounded-lg border border-white/10 bg-white/5 text-center relative group">
+                                    <img src={currentQuestion.mediaUrl} alt="Question Media" className="max-h-40 mx-auto rounded object-contain shadow-md" />
+                                    <button 
+                                        onClick={() => updateCurrentQuestion({ mediaUrl: '' })}
+                                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 shadow-lg transition-all active:scale-95 flex items-center justify-center"
+                                        title="Remove media"
+                                    >
+                                        <TrashIcon />
+                                    </button>
                                 </div>
-                                <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300">Add media</p>
-                                <p className="text-[10px] sm:text-xs text-slate-400">Upload or drag files here</p>
-                            </div>
+                            ) : (
+                                <label className="flex-shrink-0 mx-2 sm:mx-3 mt-2 sm:mt-3 p-3 rounded-lg border-2 border-dashed border-white/20 bg-white/5 text-center hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer group block">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,video/*" 
+                                        className="hidden" 
+                                        onChange={handleFileUpload} 
+                                    />
+                                    <div className="flex justify-center gap-3 mb-1.5">
+                                        <span className="text-slate-400 group-hover:text-primary-500 transition-colors"><CameraIcon /></span>
+                                        <span className="text-slate-400 group-hover:text-primary-500 transition-colors"><VideoIcon /></span>
+                                        <span className="text-slate-400 group-hover:text-primary-500 transition-colors"><MusicIcon /></span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm font-medium text-slate-300">
+                                        {isUploadingMedia ? 'Uploading media...' : 'Add media'}
+                                    </p>
+                                    <p className="text-[10px] sm:text-xs text-slate-400">Click to upload image or video</p>
+                                </label>
+                            )}
 
-                            {/* Answers Grid - 2x2 Always */}
-                            <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3">
-                                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                                    {currentQuestion.answers.map((answer, index) => (
-                                        <div
-                                            key={index}
-                                            className={`
-                                                flex items-center rounded-lg border-2 bg-white dark:bg-slate-800 overflow-hidden cursor-pointer
-                                                transition-all duration-200 hover:shadow-sm h-12 sm:h-14
-                                                ${currentQuestion.selectedAnswers.includes(index)
-                                                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
-                                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                                                }
-                                            `}
-                                            onClick={() => toggleCorrectAnswer(index)}
-                                        >
-                                            <div className={`w-10 h-full sm:w-12 ${answerStyles[index].bg} flex items-center justify-center flex-shrink-0`}>
-                                                <span className="text-white text-sm sm:text-lg font-bold">{answerStyles[index].icon}</span>
-                                            </div>
-                                            <input
-                                                type="text"
-                                                placeholder={`Answer ${index + 1}${index >= 2 ? ' (opt)' : ''}`}
-                                                className="flex-1 min-w-0 px-2 sm:px-3 py-2 bg-transparent text-xs sm:text-sm text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none"
-                                                value={answer}
-                                                onChange={(e) => handleAnswerChange(index, e.target.value)}
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                            {currentQuestion.selectedAnswers.includes(index) && (
-                                                <span className="pr-2 text-emerald-500"><CheckIcon /></span>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
+                            {/* Answers Area */}
+                            <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 flex flex-col justify-center">
+                                {currentQuestion.questionType === 'TYPE_ANSWER' ? (
+                                    <div className="flex flex-col items-center justify-center p-8 bg-white/5 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600">
+                                        <p className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-widest">Acceptable Answer</p>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Type the correct answer here..." 
+                                            className="w-full max-w-md bg-slate-100 dark:bg-slate-900 text-center text-xl p-4 rounded-xl font-bold border-2 border-indigo-500 outline-none"
+                                            value={currentQuestion.answers[0] || ''}
+                                            onChange={(e) => handleAnswerChange(0, e.target.value)}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                        {currentQuestion.answers.slice(0, currentQuestion.questionType === 'TRUE_FALSE' ? 2 : 4).map((answer, index) => {
+                                            const isCorrect = currentQuestion.selectedAnswers.includes(index);
+                                            const isPoll = currentQuestion.questionType === 'POLL';
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className={`
+                                                        flex items-center rounded-lg border-2 bg-white/5 overflow-hidden cursor-pointer
+                                                        transition-all duration-200 hover:shadow-sm h-12 sm:h-14
+                                                        ${isCorrect && !isPoll
+                                                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                                                            : 'border-white/10 hover:border-slate-300 dark:hover:border-slate-600'
+                                                        }
+                                                    `}
+                                                    onClick={() => !isPoll && toggleCorrectAnswer(index)}
+                                                >
+                                                    <div className={`w-10 h-full sm:w-12 ${answerStyles[index].bg} flex items-center justify-center flex-shrink-0`}>
+                                                        <span className="text-white text-sm sm:text-lg font-bold">{answerStyles[index].icon}</span>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder={currentQuestion.questionType === 'TRUE_FALSE' ? (index === 0 ? 'True' : 'False') : `Answer ${index + 1}${index >= 2 ? ' (opt)' : ''}`}
+                                                        className="flex-1 min-w-0 px-2 sm:px-3 py-2 bg-transparent text-xs sm:text-sm text-white font-bold placeholder:text-slate-400 focus:outline-none"
+                                                        value={answer}
+                                                        onChange={(e) => handleAnswerChange(index, e.target.value)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        readOnly={currentQuestion.questionType === 'TRUE_FALSE'}
+                                                    />
+                                                    {!isPoll && isCorrect && (
+                                                        <span className="pr-2 text-emerald-500"><CheckIcon /></span>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -449,42 +512,49 @@ export default function QuizCreator() {
                 <aside className={`
                     fixed lg:relative inset-y-0 right-0 z-50 lg:z-auto
                     w-64 lg:w-52 xl:w-60
-                    bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800
+                    bg-[#0B0F19]/80 backdrop-blur-xl border-l border-white/10
                     flex flex-col p-4 gap-3 overflow-hidden
                     transform transition-transform duration-300 ease-out
                     ${settingsOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
                 `}>
                     <button
-                        className="lg:hidden absolute top-3 right-3 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"
+                        className="lg:hidden absolute top-3 right-3 p-1.5 hover:bg-white/10 rounded-full text-slate-500"
                         onClick={() => setSettingsOpen(false)}
                     >
                         <CloseIcon />
                     </button>
 
-                    <h3 className="font-bold text-sm text-slate-800 dark:text-white">Settings</h3>
+                    <h3 className="font-bold text-sm text-white font-bold">Settings</h3>
 
                     <div className="flex-1 overflow-y-auto space-y-3 min-h-0">
                         <div className="space-y-1.5">
-                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 dark:text-slate-200">
                                 <DocumentIcon /> Question type
                             </label>
                             <select
-                                className="w-full px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
-                                value={currentQuestion.answerType}
-                                onChange={(e) => updateCurrentQuestion({ answerType: e.target.value })}
+                                className="w-full px-2 py-1.5 rounded bg-white/5 border-white/10 text-xs"
+                                value={currentQuestion.questionType}
+                                onChange={(e) => {
+                                    const val = e.target.value as any;
+                                    let newAnswers = currentQuestion.answers;
+                                    if (val === 'TRUE_FALSE') newAnswers = ['True', 'False', '', ''];
+                                    else if (val === 'TYPE_ANSWER') newAnswers = ['', '', '', ''];
+                                    updateCurrentQuestion({ questionType: val, answers: newAnswers, selectedAnswers: [] })
+                                }}
                             >
-                                <option>Quiz</option>
-                                <option>True/False</option>
-                                <option>Poll</option>
+                                <option value="MULTIPLE_CHOICE">Multiple Choice</option>
+                                <option value="TRUE_FALSE">True / False</option>
+                                <option value="POLL">Poll (No Points)</option>
+                                <option value="TYPE_ANSWER">Type Answer</option>
                             </select>
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 dark:text-slate-200">
                                 <ClockIcon /> Time limit
                             </label>
                             <select
-                                className="w-full px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                                className="w-full px-2 py-1.5 rounded bg-white/5 border-white/10 text-xs"
                                 value={currentQuestion.timeLimit}
                                 onChange={(e) => updateCurrentQuestion({ timeLimit: e.target.value })}
                             >
@@ -497,11 +567,11 @@ export default function QuizCreator() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 dark:text-slate-200">
                                 <TargetIcon /> Points
                             </label>
                             <select
-                                className="w-full px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                                className="w-full px-2 py-1.5 rounded bg-white/5 border-white/10 text-xs"
                                 value={currentQuestion.points}
                                 onChange={(e) => updateCurrentQuestion({ points: e.target.value })}
                             >
@@ -512,11 +582,11 @@ export default function QuizCreator() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 dark:text-slate-200">
                                 <CheckIcon /> Answer options
                             </label>
                             <select
-                                className="w-full px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                                className="w-full px-2 py-1.5 rounded bg-white/5 border-white/10 text-xs"
                                 value={currentQuestion.answerType}
                                 onChange={(e) => {
                                     // Reset selected answers if switching type
@@ -529,7 +599,7 @@ export default function QuizCreator() {
                         </div>
                     </div>
 
-                    <div className="flex-shrink-0 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="flex-shrink-0 pt-3 border-t border-white/10 space-y-2">
                         <div className="flex gap-2">
                             <button
                                 onClick={deleteQuestion}
@@ -549,7 +619,7 @@ export default function QuizCreator() {
             </div>
 
             {/* Mobile Bottom Navigation */}
-            <nav className="lg:hidden flex-shrink-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex h-14">
+            <nav className="lg:hidden flex-shrink-0 bg-[#0B0F19]/80 backdrop-blur-xl border-t border-white/10 flex h-14">
                 <button
                     className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${sidebarOpen ? 'text-primary-500' : 'text-slate-500'}`}
                     onClick={() => { setSidebarOpen(!sidebarOpen); setSettingsOpen(false); }}
