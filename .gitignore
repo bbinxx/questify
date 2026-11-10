@@ -23,7 +23,7 @@ yarn-error.log*
 
 # Local Env Files
 .env
-.env*.local
+.env.*
 !.env.example
 
 # Database
@@ -42,3 +42,33 @@ query
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local credentials
+.aws/
+*.key
+*-firebase-adminsdk-*.json
+service-account*.json
+serviceAccount*.json
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Local worktrees and caches
+.worktrees/
+worktrees/
+.cache/
+.turbo/
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Editor and OS files
+.idea/
+*.swp
+*.swo
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
