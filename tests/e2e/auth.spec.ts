@@ -1,0 +1,23 @@
+import { test, expect, signup } from './helpers'
+
+test('public routes, protected redirects and the signup/login/logout journey', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('body')).toBeVisible()
+    const assets = await page.locator('script[src*="/_next/"]').evaluateAll(elements => elements.map(e => (e as HTMLScriptElement).src))
+    expect(assets.length).toBeGreaterThan(0)
+    for (const asset of assets) expect((await page.request.get(asset)).status()).toBe(200)
+    await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/login$/)
+    const account = await signup(page)
+    await expect(page.getByRole('heading', { name: 'My Library', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Logout', exact: true }).click()
+    await expect(page).toHaveURL(/\/login$/)
+    await page.getByLabel('Username or email').fill(account.username)
+    await page.getByLabel('Password', { exact: true }).fill('wrong-password')
+    await page.getByRole('button', { name: 'Login', exact: true }).click()
+    await expect(page.getByRole('alert').filter({ hasText: 'Invalid credentials' })).toBeVisible()
+    await page.getByLabel('Username or email').fill(account.username)
+    await page.getByLabel('Password', { exact: true }).fill(account.password)
+    await page.getByRole('button', { name: 'Login', exact: true }).click()
+    await expect(page).toHaveURL(/\/dashboard$/)
+})

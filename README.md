@@ -71,3 +71,14 @@ See [milestone verification](docs/releases/2026-11-10-mixed-presentations.md).
 - [Phased implementation plan](docs/superpowers/plans/2026-11-10-full-platform.md)
 - [First mixed-presentation slice](docs/superpowers/plans/2026-11-10-mixed-presentations.md)
 - [Repository agent guidance](AGENTS.md)
+
+## Browser and API tests
+
+Playwright covers Chromium, Firefox and mobile UI, authenticated APIs, media and
+multiplayer sessions using disposable local services. See [testing setup and commands](docs/TESTING.md).
+
+```sh
+npm run test:e2e:install
+npm run test:e2e
+npm run test:e2e:report
+```
