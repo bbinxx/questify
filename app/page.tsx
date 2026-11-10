@@ -38,7 +38,7 @@ export default function Home() {
                         Questify
                     </span>
                 </motion.div>
-                
+
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                     <Link
                         href="/login"
@@ -58,9 +58,9 @@ export default function Home() {
                     transition={{ duration: 0.8, ease: "easeOut" }}
                     className="text-center max-w-4xl mx-auto w-full"
                 >
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.8 }} 
-                        animate={{ opacity: 1, scale: 1 }} 
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: 0.2, duration: 0.8, type: 'spring' }}
                         className="inline-block mb-6 px-4 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 font-black text-sm tracking-widest uppercase"
                     >
@@ -73,9 +73,9 @@ export default function Home() {
                             Audience Instantly
                         </span>
                     </h1>
-                    
+
                     <p className="text-xl md:text-2xl text-slate-400 font-medium mb-16 max-w-2xl mx-auto leading-relaxed">
-                        Join millions of players in real-time cinematic quizzes. No apps to download, just pure rhythmic engagement.
+                        Bring your audience together with real-time quizzes. No apps to download, just pure rhythmic engagement.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6 w-full max-w-md mx-auto">

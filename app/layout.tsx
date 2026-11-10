@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import MotionProvider from './components/MotionProvider'
 
 export const metadata: Metadata = {
     title: 'Questify - Create Interactive Quizzes',
@@ -13,7 +14,7 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en" suppressHydrationWarning>
+        <html lang="en">
             <head>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -22,7 +23,7 @@ export default function RootLayout({
                 <meta name="theme-color" content="#0d9488" media="(prefers-color-scheme: light)" />
                 <meta name="theme-color" content="#134e4a" media="(prefers-color-scheme: dark)" />
             </head>
-            <body>{children}</body>
+            <body><a href="#page-content" className="skip-link">Skip to content</a><MotionProvider><div id="page-content" tabIndex={-1} className="h-full">{children}</div></MotionProvider></body>
         </html>
     )
 }

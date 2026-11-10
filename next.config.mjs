@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'standalone',
+    distDir: process.env.NODE_ENV !== 'production' ? '.next-dev' : '.next',
+    experimental: { serverActions: { bodySizeLimit: '21mb' } },
 }
 
 export default nextConfig

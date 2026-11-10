@@ -14,10 +14,10 @@ Firestore persistence and R2 media services. Introduce a shared activity registr
 versioned content and response contracts before adding types. Keep game authority
 server-side; add durable state and background processing as scale requires them.
 
-**Tech stack:** Current Next.js 14/React 18/TypeScript, Node custom server,
+**Tech stack:** Current Next.js 16/React 19/TypeScript, Node custom server,
 Socket.IO, Firebase Admin/Firestore and S3-compatible R2. Runtime work currently
-targets Node 24+. P0 must assess supported dependency versions before choosing a
-framework migration; do not prescribe incompatible React 19 APIs to React 18 code.
+targets Node 24+. The first milestone upgrades to patched Next.js 16/React 19 and Firebase Admin 14.
+Use version-matched docs in node_modules/next/dist/docs/ for subsequent framework work.
 
 **Spec:** [Complete product inventory](../../PRODUCT_ROADMAP.md).
 **Existing fix plan:** [Skill audit fixes](2026-11-10-skill-audit-fixes.md).
@@ -77,11 +77,12 @@ identity, permissions and content dependencies are available.
 Files: existing audit changes in app/, lib/, server/, server.js, package.json,
 next.config.mjs, Dockerfile, render.yaml, .env.example and tests/.
 
-Current evidence: the earlier analytics JSX and cross-owner update failures were
+Historical starting evidence (before the first milestone): the earlier analytics JSX and cross-owner update failures were
 reproduced; session/validation/editor/realtime tests were added; a production build
 passed before the latest edits. Final review, a fresh full verification run,
 dependency remediation, browser checks and integration into dev remain unfinished.
-Do not report the current branch as complete or overwrite its private .env.local.
+See the first milestone release note for subsequent verification. Do not overwrite
+private .env.local values. Remaining foundation capabilities are tracked individually.
 
 - [ ] Rerun `npm test`, `npm run typecheck`, `node --check server.js`,
   `node --check server/game-server.js` and `npm run build` after final changes.
@@ -351,8 +352,8 @@ activity model. They should not become an excuse to build every integration at o
 | Competitor/source research | Recorded | Official references in product inventory |
 | Feature inventory | Draft recorded | All IDs grouped into P0–P15 |
 | Program delivery plan | Draft recorded | Release gates and dependencies above |
-| Existing audit fixes | In progress, uncommitted | fix/skill-audit; finish P0 verification/remediation |
-| Full feature implementation | Not started | Begin only after the foundation gate |
+| Core foundation fixes | Verified in first milestone | 34 regression tests, build/typecheck, npm audit and HTTP smoke checks; account recovery and other BASE items remain open |
+| First feature slice | Verified in first milestone | Mixed text/quiz/poll decks, stable reorder IDs and immutable publication; remaining slices stay open |
 
 No calendar promises are attached to this scope. Estimate each slice after its
 acceptance tests, migrations and provider dependencies are specified. Track releases

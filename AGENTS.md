@@ -1,14 +1,14 @@
 # Questify repository guidance
 
 ## Project map
-Questify is a multiplayer quiz app using Next.js 14 App Router, React 18,
+Questify is a multiplayer quiz app using Next.js 16 App Router, React 19,
 TypeScript, Tailwind CSS 4, Framer Motion, and a CommonJS Socket.IO custom server.
 Read package.json and the affected source before using README examples; some are stale.
 
 - app/: routes, UI, server actions, API handlers, game configuration and audio.
-- server.js: authoritative room state, timers, scoring, Socket.IO events and session persistence.
+- server.js: custom HTTP server bootstrap; server/game-server.js: authoritative rooms, timers, scoring, Socket.IO events and session persistence.
 - lib/db.ts: DatabaseService backed by Firestore; lib/firebase.ts initializes Admin SDK.
-- lib/r2.ts and app/api/media/[key]/route.ts: media storage and retrieval.
+- lib/r2.ts and app/api/media/[...key]/route.ts: media storage and retrieval.
 - Dockerfile, render.yaml, next.config.mjs: deployment with a custom Node server.
 
 ## Select skills by task
@@ -31,8 +31,9 @@ Use these global skills when the task benefits from them:
 - vercel-composition-patterns for component architecture.
 - frontend-design for visual design work.
 
-Apply global web rules within React 18 and Next.js 14 compatibility. Skip React 19
-and newer Next.js APIs unless an upgrade is explicitly part of the task.
+Use the installed Next.js 16/React 19 APIs. Read version-matched docs in
+node_modules/next/dist/docs/ before unfamiliar framework changes. Request cookies
+and server route params are asynchronous.
 Implement changes on a focused feature/fix branch (use docs/chore where appropriate),
 verify and commit them, then integrate into dev when authorized. Branch names alone
 do not authorize publishing to origin.
@@ -46,17 +47,19 @@ npm run dev starts the custom server; npm run dev:next omits Socket.IO.
 For application changes, run node_modules/.bin/tsc --noEmit and npm run build
 when dependencies are available. For server changes, also run node --check server.js
 and exercise relevant multiplayer behavior using the custom server.
-There are currently no test or lint scripts. Do not report them as passing or
-introduce a test framework for a documentation-only change. Record actual commands,
+Use npm test (Node built-in tests) and npm run typecheck. Run build and typecheck
+sequentially because builds regenerate route types. No standalone lint script exists.
+Development output is .next-dev; production output is .next. Node 24+ is required. Record actual commands,
 failures and external-service limitations. Use git diff --check for documentation.
 
 ## Boundaries
 Keep Firebase Admin and R2 credentials on the server. Do not print .env contents.
 Use DatabaseService for persisted quiz/user work; verify legacy API consumers
 before consolidating storage. Preserve server-authoritative game decisions.
-Do not run legacy db:prod:* scripts: they reference absent Prisma tooling/schema.
-lib/redis.ts imports ioredis, which is absent from package.json; verify consumers
-before restoring or removing it. Do not silently treat Redis as the active game store.
+Do not restore removed Prisma scripts or the unused Redis module without a concrete
+requirement. Rooms are in memory; restart recovery and multi-instance coordination
+remain roadmap work. Signed session cookies are verified in lib/session.ts and
+lib/session-token.js; do not trust the retired raw userId cookie.
 
 ## Git
 Use main as the integration branch and dev as the current development branch.

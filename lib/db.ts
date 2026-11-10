@@ -1,4 +1,8 @@
+import { createHash } from 'node:crypto';
+import { persistSession } from './firebase-admin';
 import { db } from './firebase';
+import { publishPresentation, loadPublishedGame } from './presentations';
+import type { Activity } from './activities/types';
 
 export interface User {
     id: string;
@@ -8,19 +12,14 @@ export interface User {
     updatedAt?: string;
 }
 
-export interface Question {
-    id: string;
-    text: string;
-    options: string; // JSON string of options array
-    correct: number; // Index of correct option
-    timeLimit: number;
-    mediaUrl?: string;
-}
+export type Question = Activity;
 
 export interface Game {
     id: string;
     title: string;
     hostId: string;
+    versionId?: string | null;
+    schemaVersion?: number;
     status: string; // WAITING, PLAYING, FINISHED
     questions: Question[];
     createdAt?: string;
@@ -44,6 +43,10 @@ export interface Session {
  * You can switch this entire implementation to any other database service in this file.
  */
 export const DatabaseService = {
+    async getUserById(userId: string): Promise<User | null> {
+        const doc = await db.collection('users').doc(userId).get();
+        return doc.exists ? { ...doc.data(), id: doc.id } as User : null;
+    },
     // --- USER METHODS ---
 
     /**
@@ -53,7 +56,7 @@ export const DatabaseService = {
         try {
             const snapshot = await db.collection('users').where('username', '==', username).limit(1).get();
             if (snapshot.empty) return null;
-            
+
             const doc = snapshot.docs[0];
             return {
                 id: doc.id,
@@ -69,22 +72,17 @@ export const DatabaseService = {
      * Create a new user
      */
     async createUser(username: string, passwordHash: string): Promise<User> {
-        try {
-            const newUserRef = await db.collection('users').add({
-                username,
-                password: passwordHash,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            });
-
-            return {
-                id: newUserRef.id,
-                username
-            };
-        } catch (error) {
-            console.error('DatabaseService.createUser error:', error);
-            throw new Error('Database insert failed');
-        }
+        const usernameKey = createHash('sha256').update(username).digest('hex');
+        const reservation = db.collection('usernames').doc(usernameKey);
+        const user = db.collection('users').doc();
+        return db.runTransaction(async transaction => {
+            const existing = await transaction.get(reservation);
+            if (existing.exists) throw new Error('Username already exists');
+            transaction.create(reservation, { userId: user.id });
+            transaction.create(user, { username, password: passwordHash,
+                createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+            return { id: user.id, username };
+        });
     },
 
     /**
@@ -132,83 +130,22 @@ export const DatabaseService = {
      * Create a new quiz/game with nested questions
      */
     async createGame(title: string, hostId: string, questions: any[]): Promise<string> {
-        try {
-            const formattedQuestions = questions.map((q, idx) => ({
-                id: (idx + 1).toString(),
-                text: q.text,
-                options: typeof q.options === 'string' ? q.options : JSON.stringify(q.answers),
-                correct: q.correct !== undefined ? q.correct : q.correctAnswer,
-                timeLimit: parseInt(q.timeLimit) || 20,
-                type: q.type || 'MULTIPLE_CHOICE',
-                mediaUrl: q.mediaUrl || ''
-            }));
-
-            const gameRef = await db.collection('games').add({
-                title,
-                hostId,
-                status: 'WAITING',
-                questions: formattedQuestions,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            });
-
-            return gameRef.id;
-        } catch (error) {
-            console.error('DatabaseService.createGame error:', error);
-            throw new Error('Database game creation failed');
-        }
+        return publishPresentation(db, { title, hostId, questions });
     },
 
     /**
      * Retrieve a game/quiz by ID
      */
     async getGame(id: string): Promise<Game | null> {
-        try {
-            const doc = await db.collection('games').doc(id).get();
-            if (!doc.exists) return null;
-
-            const data = doc.data();
-            if (!data) return null;
-
-            return {
-                id: doc.id,
-                title: data.title,
-                hostId: data.hostId,
-                status: data.status || 'WAITING',
-                questions: data.questions || [],
-                createdAt: data.createdAt,
-                updatedAt: data.updatedAt
-            } as Game;
-        } catch (error) {
-            console.error('DatabaseService.getGame error:', error);
-            throw new Error('Database fetch game failed');
-        }
+        const published = await loadPublishedGame(db, id);
+        return published ? { ...published, status: published.status || 'WAITING' } as Game : null;
     },
 
     /**
      * Update an existing game/quiz
      */
-    async updateGame(id: string, title: string, questions: any[]): Promise<void> {
-        try {
-            const formattedQuestions = questions.map((q, idx) => ({
-                id: (idx + 1).toString(),
-                text: q.text,
-                options: typeof q.options === 'string' ? q.options : JSON.stringify(q.answers),
-                correct: q.correct !== undefined ? q.correct : q.correctAnswer,
-                timeLimit: parseInt(q.timeLimit) || 20,
-                type: q.type || 'MULTIPLE_CHOICE',
-                mediaUrl: q.mediaUrl || ''
-            }));
-
-            await db.collection('games').doc(id).update({
-                title,
-                questions: formattedQuestions,
-                updatedAt: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error('DatabaseService.updateGame error:', error);
-            throw new Error('Database update game failed');
-        }
+    async updateGame(id: string, title: string, questions: any[], hostId: string): Promise<void> {
+        await publishPresentation(db, { gameId: id, title, hostId, questions });
     },
 
     /**
@@ -216,7 +153,7 @@ export const DatabaseService = {
      */
     async deleteGame(id: string): Promise<void> {
         try {
-            await db.collection('games').doc(id).delete();
+            await db.recursiveDelete(db.collection('games').doc(id));
         } catch (error) {
             console.error('DatabaseService.deleteGame error:', error);
             throw new Error('Database delete game failed');
@@ -229,16 +166,7 @@ export const DatabaseService = {
      * Save a completed game session
      */
     async saveSession(sessionData: Session): Promise<string> {
-        try {
-            const docRef = await db.collection('sessions').add({
-                ...sessionData,
-                createdAt: new Date().toISOString()
-            });
-            return docRef.id;
-        } catch (error) {
-            console.error('DatabaseService.saveSession error:', error);
-            throw new Error('Database save session failed');
-        }
+        return persistSession(sessionData);
     },
 
     /**
@@ -248,16 +176,13 @@ export const DatabaseService = {
         try {
             const snapshot = await db.collection('sessions')
                 .where('hostId', '==', hostId)
-                .orderBy('endedAt', 'desc')
                 .get();
-            
-            return snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as Session[];
+
+            return (snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Session[])
+                .sort((a, b) => Date.parse(b.endedAt) - Date.parse(a.endedAt));
         } catch (error) {
             console.error('DatabaseService.getHostSessions error:', error);
-            return [];
+            throw new Error('Could not load session analytics');
         }
     }
 };

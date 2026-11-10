@@ -173,3 +173,9 @@ plugin catalog coverage is summarized above.
 | review-agent | `/home/bbin/.codex/skills/.system/review-agent/SKILL.md` |
 | skill-creator | `/home/bbin/.codex/skills/.system/skill-creator/SKILL.md` |
 | skill-installer | `/home/bbin/.codex/skills/.system/skill-installer/SKILL.md` |
+
+## Foundation implementation update
+The foundation branch upgrades to Next.js 16/React 19 and Node 24+, adds Node test
+and typecheck scripts, removes unused browser Firebase/jose/Redis dependencies, and
+uses signed sessions and server-authoritative analytics. Earlier findings above are
+historical. Follow the product roadmap ledger for unresolved features.

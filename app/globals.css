@@ -36,7 +36,7 @@
 
     html,
     body {
-        @apply h-full overflow-hidden;
+        @apply min-h-full;
     }
 
     body {
@@ -147,4 +147,15 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-300 dark:bg-slate-600;
+}
+/* Shared keyboard and motion preferences. */
+:where(button, a, input, textarea, select):focus-visible {
+    outline: 3px solid #818cf8;
+    outline-offset: 3px;
+}
+button, a { touch-action: manipulation; }
+.skip-link { position: fixed; top: -100px; left: 1rem; z-index: 100; background: #fff; color: #111; padding: 0.75rem 1rem; }
+.skip-link:focus { top: 1rem; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

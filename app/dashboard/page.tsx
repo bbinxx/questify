@@ -1,5 +1,5 @@
 import { DatabaseService } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { getSessionUserId } from '@/lib/session'
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { logout } from '@/app/actions/auth';
@@ -32,7 +32,7 @@ const QuestionIcon = () => (
 )
 
 export default async function DashboardPage() {
-    const userId = cookies().get('userId')?.value;
+    const userId = await getSessionUserId();
 
     if (!userId) {
         redirect('/login');

@@ -72,3 +72,5 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+
+.next-dev/

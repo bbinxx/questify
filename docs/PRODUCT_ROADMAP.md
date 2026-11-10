@@ -25,32 +25,32 @@ each named game. Product features are separate from vendor pricing/plan limits.
 ## Existing baseline and work in progress
 The app has host accounts, a quiz library/editor, live host/display/participant
 screens, four basic question types, media support, scoring/leaderboards and basic
-session analytics. Coverage and reliability are incomplete. Audit changes are on
-`fix/skill-audit`, uncommitted and not integrated into `dev` as of this document.
-Do not replace or discard that work when starting roadmap delivery.
+session analytics. Coverage and reliability are incomplete. The first implementation milestone combines the reviewed foundation fixes with
+mixed text/quiz/poll presentations. See [its release note](releases/2026-11-10-mixed-presentations.md)
+for verification and limitations; remaining inventory items stay open.
 
 The initial production dependency audit reported 25 advisories (2 critical, 12 high,
 11 moderate); these include transitive dependencies. This is a baseline observation,
-not an assessment that every advisory is exploitable. Remediation and a fresh audit
-belong to P0. Do not use `npm audit fix --force` without reviewing breaking changes.
+not an assessment that every advisory is exploitable. The first milestone remediated that baseline; the final npm audit returned zero
+advisories after compatible updates and a supported framework/runtime migration. Do not use `npm audit fix --force` without reviewing breaking changes.
 
-The current data model supports only a narrow quiz shape. A shared, versioned
-activity model must precede additional interactions to avoid rewriting the editor,
-socket protocol, persistence and reports for every new question type.
+The current data model supports only a narrow quiz shape. The first milestone introduces a shared activity registry, schema version 1, and
+immutable publication snapshots. Additional interactions should extend these contracts
+rather than rebuilding the editor, protocol, persistence and reports independently.
 
 ## Reliable foundation (P0)
 
 | ID | Feature / required behavior | Current status |
 | --- | --- | --- |
-| BASE-01 | Signed host sessions, login/logout and resource ownership | Partial |
+| BASE-01 | Signed host sessions, login/logout and resource ownership | Partial; first milestone implemented/tested |
 | BASE-02 | Email verification, password reset and account recovery | Planned |
 | BASE-03 | Login/signup throttling and abuse prevention | Planned |
 | BASE-04 | Validated quiz data, files and Socket.IO payloads | Partial |
-| BASE-05 | Correct cancellation, pause/resume, deadlines and duplicate-answer prevention | Partial |
-| BASE-06 | Player reconnect and complete state restoration | Partial |
+| BASE-05 | Correct cancellation, pause/resume, deadlines and duplicate-answer prevention | Partial; first milestone implemented/tested |
+| BASE-06 | Player reconnect and complete state restoration | Partial; first milestone implemented/tested |
 | BASE-07 | Idempotent authoritative session-result persistence | Partial |
-| BASE-08 | Separate development/build caches and reproducible Node/Docker setup | Partial |
-| BASE-09 | Dependency advisory remediation and supported framework/runtime migration | Planned |
+| BASE-08 | Separate development/build caches and reproducible Node/Docker setup | Partial; first milestone implemented/tested |
+| BASE-09 | Dependency advisory remediation and supported framework/runtime migration | Verified in first milestone |
 | BASE-10 | Regression tests, browser end-to-end tests and continuous integration | Partial |
 
 ## Shared content and response model (P1)
@@ -60,10 +60,10 @@ socket protocol, persistence and reports for every new question type.
 | MODEL-01 | Versioned presentations containing mixed activity and content slides | Planned |
 | MODEL-02 | Discriminated activity schemas with editor, player, display and report contracts | Planned |
 | MODEL-03 | Separate scored, unscored, identified and anonymous response policies | Planned |
-| MODEL-04 | Immutable published versions and per-session content snapshots | Planned |
+| MODEL-04 | Immutable published versions and per-session content snapshots | Verified in first milestone |
 | MODEL-05 | Server-side validation and grading adapters for every activity type | Planned |
 | MODEL-06 | Response IDs, participant identity, deduplication and attempt policies | Planned |
-| MODEL-07 | Backward-compatible migration of existing quizzes and reports | Planned |
+| MODEL-07 | Backward-compatible migration of existing quizzes and reports | Verified in first milestone |
 
 ## Authoring and content management (P2)
 
@@ -88,7 +88,7 @@ socket protocol, persistence and reports for every new question type.
 | --- | --- | --- |
 | QUESTION-01 | Single-choice scored quiz with configurable answer count | Partial |
 | QUESTION-02 | Multi-select quiz with multiple correct options and partial-credit rules | Planned |
-| QUESTION-03 | True/false quiz | Partial |
+| QUESTION-03 | True/false quiz | Partial; first milestone implemented/tested |
 | QUESTION-04 | Typed-answer quiz with accepted alternatives and normalization | Partial |
 | QUESTION-05 | Numeric answer with units, tolerance and precision grading | Planned |
 | QUESTION-06 | Puzzle/order-the-items quiz | Planned |
@@ -96,7 +96,7 @@ socket protocol, persistence and reports for every new question type.
 | QUESTION-08 | Fill-in-the-blank activity | Planned |
 | QUESTION-09 | Image choices and audio-based questions | Planned |
 | QUESTION-10 | Scored pin-on-image with author-defined correct region | Planned |
-| QUESTION-11 | Unscored single-choice poll | Partial |
+| QUESTION-11 | Unscored single-choice poll | Partial; first milestone implemented/tested |
 | QUESTION-12 | Unscored multi-select poll | Planned |
 | QUESTION-13 | Live word cloud with normalization, deduplication and filtering | Planned |
 | QUESTION-14 | Open-ended short/long text with response wall | Planned |
