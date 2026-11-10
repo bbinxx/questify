@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    distDir: process.env.NODE_ENV !== 'production' ? '.next-dev' : '.next',
+    distDir: process.env.QUESTIFY_BUILD_DIR || (process.env.NODE_ENV !== 'production' ? '.next-dev' : '.next'),
     experimental: { serverActions: { bodySizeLimit: '21mb' } },
 }
 

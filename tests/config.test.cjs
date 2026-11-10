@@ -12,3 +12,12 @@ test('custom Socket.IO server uses a normal production build rather than an inco
     const { default: config } = await import('../next.config.mjs')
     assert.notEqual(config.output, 'standalone')
 })
+
+test('integration builds can use an isolated output directory', async () => {
+    const previous = process.env.QUESTIFY_BUILD_DIR
+    process.env.QUESTIFY_BUILD_DIR = '.next-e2e'
+    try {
+        const { default: config } = await import('../next.config.mjs?isolated-build')
+        assert.equal(config.distDir, '.next-e2e')
+    } finally { if (previous === undefined) delete process.env.QUESTIFY_BUILD_DIR; else process.env.QUESTIFY_BUILD_DIR = previous }
+})

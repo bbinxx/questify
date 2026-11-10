@@ -1,0 +1,107 @@
+import { test, expect, signup, createDeck, choice, slide, guestContext } from './helpers'
+import type { Page } from '@playwright/test'
+
+async function phase(host: Page, name: string) {
+    await expect(host.getByText(name, { exact: true })).toBeVisible()
+}
+async function next(host: Page, current: string, following: string) {
+    await phase(host, current)
+    await host.getByRole('button', { name: 'Skip Next' }).click()
+    await phase(host, following)
+}
+async function join(player: Page, pin: string, name: string) {
+    await player.goto('/join')
+    await player.getByLabel('Game PIN').fill(pin)
+    await player.getByRole('button', { name: 'Next', exact: true }).click()
+    await player.getByLabel('Nickname').fill(name)
+    await player.getByRole('button', { name: 'Ready!', exact: true }).click()
+    await expect(player.getByText("You're in!", { exact: true })).toBeVisible()
+}
+
+test('live host, display and two players: slides, pause, answers, reconnect and persisted report', async ({ page: host, browser }, info) => {
+    test.setTimeout(100_000)
+    // Host controls currently target large displays; mobile participants are tested
+    // in their project viewport while the host uses its intended presentation size.
+    await host.setViewportSize({ width: 1440, height: 1000 })
+    await signup(host)
+    const { gameId } = await createDeck(host, [slide('Read together'), choice('Choose the correct answer'), slide('Closing slide')])
+    await host.goto(`/present/${gameId}`)
+    await phase(host, 'WAITING')
+    const pin = await host.evaluate(id => sessionStorage.getItem(`questify-host:${id}`), gameId)
+    expect(pin).toMatch(/^[A-Z0-9]{6}$/)
+    const playerContext = await guestContext(browser, info)
+    const secondContext = await guestContext(browser, info)
+    try {
+        const player = await playerContext.newPage(), second = await secondContext.newPage()
+        const display = await secondContext.newPage()
+        const runtimeErrors: string[] = []
+        for (const page of [player, second, display]) page.on('pageerror', error => runtimeErrors.push(error.message))
+        await display.goto(`/display/${pin}`)
+        await join(player, pin!, 'Player One')
+        await join(second, pin!, 'Player Two')
+        await expect(host.getByText('2 Players', { exact: true })).toBeVisible()
+        await host.getByRole('button', { name: 'Start Game', exact: true }).click()
+        await next(host, 'INTRO', 'CONTENT')
+        for (const page of [host, player, display]) await expect(page.getByRole('heading', { name: 'Read together', exact: true })).toBeVisible()
+        await player.reload()
+        await expect(player.getByRole('heading', { name: 'Read together', exact: true })).toBeVisible()
+        await next(host, 'CONTENT', 'QUESTION_REVEAL')
+        await next(host, 'QUESTION_REVEAL', 'THINKING')
+        await next(host, 'THINKING', 'ANSWERING')
+        await host.getByRole('button', { name: 'Pause', exact: true }).click()
+        await expect(player.getByRole('status')).toHaveText('Game paused')
+        await expect(player.getByRole('button', { name: 'Answer 1: Correct', exact: true })).toBeDisabled()
+        await host.getByRole('button', { name: 'Resume', exact: true }).click()
+        await expect(player.getByRole('button', { name: 'Answer 1: Correct', exact: true })).toBeEnabled()
+        await player.getByRole('button', { name: 'Answer 1: Correct', exact: true }).click()
+        await second.getByRole('button', { name: 'Answer 2: Wrong', exact: true }).click()
+        await expect(player.getByRole('heading', { name: 'Correct!', exact: true })).toBeVisible()
+        await expect(second.getByRole('heading', { name: 'Incorrect', exact: true })).toBeVisible()
+        await player.reload()
+        await expect(player.getByRole('heading', { name: 'Correct!', exact: true })).toBeVisible()
+        await next(host, 'RESULTS', 'LIVE_STATS')
+        await next(host, 'LIVE_STATS', 'LEADERBOARD')
+        await next(host, 'LEADERBOARD', 'TRANSITION')
+        await next(host, 'TRANSITION', 'CONTENT')
+        await expect(player.getByRole('heading', { name: 'Closing slide', exact: true })).toBeVisible()
+        host.once('dialog', dialog => dialog.accept())
+        await host.getByRole('button', { name: 'End Game', exact: true }).click()
+        await expect(host.getByRole('heading', { name: 'The Champions', exact: true })).toBeVisible()
+        await host.goto('/dashboard/analytics')
+        await expect(host.getByRole('heading', { name: 'Session report', exact: true })).toBeVisible()
+        const result = host.getByRole('article').filter({ hasText: 'Choose the correct answer' })
+        await expect(result).toContainText('2 responses · 1 correct')
+        await expect(result).toContainText('Correct: 1')
+        await expect(result).toContainText('Wrong: 1')
+        expect(runtimeErrors).toEqual([])
+    } finally { await playerContext.close(); await secondContext.close() }
+})
+
+test('poll results stay unscored on participants and persisted analytics', async ({ page: host, browser }, info) => {
+    await host.setViewportSize({ width: 1440, height: 1000 })
+    await signup(host)
+    const { gameId } = await createDeck(host, [{ ...choice('Which do you prefer?'), type: 'POLL' }])
+    await host.goto(`/present/${gameId}`)
+    await phase(host, 'WAITING')
+    const pin = await host.evaluate(id => sessionStorage.getItem(`questify-host:${id}`), gameId)
+    const playerContext = await guestContext(browser, info)
+    try {
+        const player = await playerContext.newPage()
+        await join(player, pin!, 'Voter')
+        await host.getByRole('button', { name: 'Start Game', exact: true }).click()
+        await next(host, 'INTRO', 'QUESTION_REVEAL')
+        await next(host, 'QUESTION_REVEAL', 'THINKING')
+        await next(host, 'THINKING', 'ANSWERING')
+        await player.getByRole('button', { name: 'Answer 2: Wrong', exact: true }).click()
+        await expect(player.getByRole('heading', { name: 'Thanks for your vote!', exact: true })).toBeVisible()
+        await host.getByRole('button', { name: 'Skip Next' }).click()
+        await expect(host.getByRole('heading', { name: 'Presentation complete', exact: true })).toBeVisible()
+        await host.goto('/dashboard/analytics')
+        await expect(host.getByRole('heading', { name: 'Session report', exact: true })).toBeVisible()
+        await expect(host.getByText('Leaderboard Snapshot', { exact: true })).toHaveCount(0)
+        const result = host.getByRole('article')
+        await expect(result).toContainText('Poll · unscored')
+        await expect(result).toContainText('1 responses')
+        await expect(result).toContainText('Wrong: 1')
+    } finally { await playerContext.close() }
+})

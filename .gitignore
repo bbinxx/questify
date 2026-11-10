@@ -74,3 +74,6 @@ Thumbs.db
 *.log
 
 .next-dev/
+
+.next-e2e/
+blob-report/
