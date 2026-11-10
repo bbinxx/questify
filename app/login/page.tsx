@@ -1,7 +1,7 @@
 'use client';
 
 import { login } from '@/app/actions/auth';
-import { useFormState } from 'react-dom';
+import { useActionState } from 'react';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -12,7 +12,7 @@ const initialState = {
 };
 
 export default function LoginPage() {
-    const [state, formAction] = useFormState(login, initialState);
+    const [state, formAction] = useActionState(login, initialState);
     const router = useRouter();
 
     useEffect(() => {
@@ -28,9 +28,9 @@ export default function LoginPage() {
 
                 <form action={formAction} className="space-y-4">
                     <div>
-                        <label className="block text-gray-400 mb-1">Username</label>
+                        <label htmlFor="username" className="block text-gray-400 mb-1">Username or email</label>
                         <input
-                            name="username"
+                            id="username" name="username" autoComplete="username" maxLength={100}
                             type="text"
                             required
                             className="w-full bg-gray-700 text-white rounded p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -39,9 +39,9 @@ export default function LoginPage() {
                     </div>
 
                     <div>
-                        <label className="block text-gray-400 mb-1">Password</label>
+                        <label htmlFor="password" className="block text-gray-400 mb-1">Password</label>
                         <input
-                            name="password"
+                            id="password" name="password" autoComplete="current-password"
                             type="password"
                             required
                             className="w-full bg-gray-700 text-white rounded p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -57,7 +57,7 @@ export default function LoginPage() {
                     </button>
 
                     {state?.error && (
-                        <p className="text-red-500 text-center text-sm">{state.error}</p>
+                        <p role="alert" className="text-red-400 text-center text-sm">{state.error}</p>
                     )}
                 </form>
 

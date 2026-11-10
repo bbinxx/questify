@@ -12,16 +12,18 @@ export default function DeleteGameButton({ gameId }: { gameId: string }) {
         if (!confirm('Are you sure you want to permanently delete this event? This action cannot be undone.')) {
             return
         }
-        
+
         setIsDeleting(true)
+        try {
         const res = await deleteQuiz(gameId)
-        
+
         if (res.success) {
             router.refresh()
         } else {
             alert(res.error || 'Failed to delete event')
-            setIsDeleting(false)
         }
+        } catch { alert('Unable to delete event. Please try again.') }
+        finally { setIsDeleting(false) }
     }
 
     return (
@@ -29,7 +31,7 @@ export default function DeleteGameButton({ gameId }: { gameId: string }) {
             onClick={handleDelete}
             disabled={isDeleting}
             className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all border border-transparent hover:border-rose-500/30 ml-2 shrink-0 disabled:opacity-50"
-            title="Delete Event"
+            title="Delete Event" aria-label="Delete event"
         >
             {isDeleting ? (
                 <div className="w-4 h-4 border-2 border-slate-400 border-t-rose-400 rounded-full animate-spin" />

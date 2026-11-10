@@ -1,16 +1,17 @@
 'use server'
 
+import { normalizeQuiz } from '@/lib/validation'
 import { DatabaseService } from '@/lib/db'
-import { cookies } from 'next/headers'
+import { getSessionUserId } from '@/lib/session'
 
 export async function createQuiz(title: string, questions: any[]) {
-    const userId = cookies().get('userId')?.value
+    const userId = await getSessionUserId()
 
     if (!userId) {
         return { error: 'Unauthorized', success: false }
     }
 
-    if (!title) {
+    if (typeof title !== 'string' || !title.trim()) {
         return { error: 'Title is required', success: false }
     }
 
@@ -19,7 +20,10 @@ export async function createQuiz(title: string, questions: any[]) {
     }
 
     try {
-        const gameId = await DatabaseService.createGame(title, userId, questions);
+        let data;
+        try { data = normalizeQuiz(title, questions) }
+        catch (error) { return { error: (error as Error).message, success: false } }
+        const gameId = await DatabaseService.createGame(data.title, userId, data.questions);
         return { success: true, gameId }
     } catch (error) {
         console.error('Create quiz error:', error)
@@ -28,7 +32,7 @@ export async function createQuiz(title: string, questions: any[]) {
 }
 
 export async function getQuiz(id: string) {
-    const userId = cookies().get('userId')?.value
+    const userId = await getSessionUserId()
 
     if (!userId) {
         return { error: 'Unauthorized', success: false }
@@ -53,14 +57,19 @@ export async function getQuiz(id: string) {
 }
 
 export async function updateQuiz(id: string, title: string, questions: any[]) {
-    const userId = cookies().get('userId')?.value
+    const userId = await getSessionUserId()
 
     if (!userId) {
         return { error: 'Unauthorized', success: false }
     }
 
     try {
-        await DatabaseService.updateGame(id, title, questions);
+        const quiz = await DatabaseService.getGame(id);
+        if (!quiz || quiz.hostId !== userId) return { error: 'Unauthorized', success: false };
+        let data;
+        try { data = normalizeQuiz(title, questions) }
+        catch (error) { return { error: (error as Error).message, success: false } }
+        await DatabaseService.updateGame(id, data.title, data.questions, userId);
         return { success: true, gameId: id }
     } catch (error) {
         console.error('Update quiz error:', error)
@@ -69,7 +78,7 @@ export async function updateQuiz(id: string, title: string, questions: any[]) {
 }
 
 export async function deleteQuiz(id: string) {
-    const userId = cookies().get('userId')?.value
+    const userId = await getSessionUserId()
 
     if (!userId) {
         return { error: 'Unauthorized', success: false }

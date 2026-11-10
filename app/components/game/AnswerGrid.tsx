@@ -56,6 +56,9 @@ export default function AnswerGrid({
                     return (
                         <motion.button
                             key={i}
+                            type="button"
+                            aria-label={`Answer ${i + 1}: ${ans.text}`}
+                            aria-pressed={isSelected}
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{
                                 opacity,
@@ -67,8 +70,8 @@ export default function AnswerGrid({
                             onClick={() => !disabled && onAnswerClick && onAnswerClick(i)}
                             disabled={disabled}
                             className={`
-                                ${ans.color} 
-                                rounded-xl md:rounded-2xl flex flex-row sm:flex-col md:flex-row items-center justify-start sm:justify-center md:justify-start 
+                                ${ans.color}
+                                rounded-xl md:rounded-2xl flex flex-row sm:flex-col md:flex-row items-center justify-start sm:justify-center md:justify-start
                                 p-3 md:p-6 relative overflow-hidden shadow-md md:shadow-lg transition-shadow
                                 ${disabled ? 'cursor-default' : 'cursor-pointer hover:shadow-xl'}
                                 min-h-[80px] sm:min-h-[120px]

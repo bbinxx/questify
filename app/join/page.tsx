@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import AnswerGrid from '../components/game/AnswerGrid'
+import ContentSlide from '@/app/components/activities/ContentSlide'
 import { useGameAudio } from '../hooks/useGameAudio'
 
 const colors = ['bg-rose-500', 'bg-blue-500', 'bg-amber-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500', 'bg-cyan-500', 'bg-orange-500']
 const avatars = ['🦁', '🦊', '🐼', '🐨', '🐯', '🐙', '🦄', '🐲']
 
-type GameState = 'WAITING' | 'INTRO' | 'QUESTION_REVEAL' | 'MEDIA_FOCUS' | 'THINKING' | 'ANSWERING' | 'LOCKED' | 'RESULTS' | 'LIVE_STATS' | 'LEADERBOARD' | 'TRANSITION' | 'FINAL_RESULTS' | 'END'
+type GameState = 'CONTENT' | 'WAITING' | 'INTRO' | 'QUESTION_REVEAL' | 'MEDIA_FOCUS' | 'THINKING' | 'ANSWERING' | 'LOCKED' | 'RESULTS' | 'LIVE_STATS' | 'LEADERBOARD' | 'TRANSITION' | 'FINAL_RESULTS' | 'END'
 
 export default function JoinRoom() {
     const [step, setStep] = useState<'code' | 'name' | 'game'>('code')
@@ -23,10 +24,15 @@ export default function JoinRoom() {
     const [error, setError] = useState('')
 
     const audio = useGameAudio()
+    const [paused, setPaused] = useState(false)
+    const pendingJoin = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const membership = useRef<{ roomId: string; name: string; color: string; avatar: string; playerId?: string } | null>(null)
 
     const myColor = useMemo(() => colors[Math.floor(Math.random() * colors.length)], [])
 
     // Game data
+    const [slide, setSlide] = useState({ title: '', body: '', mediaUrl: '' })
+    const [hasCompetition, setHasCompetition] = useState(true)
     const [questionType, setQuestionType] = useState<string>('MULTIPLE_CHOICE')
     const [answers, setAnswers] = useState<any[]>([])
     const [typedAnswer, setTypedAnswer] = useState('')
@@ -34,7 +40,7 @@ export default function JoinRoom() {
     const [hasAnswered, setHasAnswered] = useState(false)
     const [answeredIndex, setAnsweredIndex] = useState(-1)
     const [resultFeedback, setResultFeedback] = useState<{ correct: boolean; points: number; score: number; streak: number } | null>(null)
-    
+
     // Fun facts for transitions
     const [funFact, setFunFact] = useState('')
 
@@ -42,13 +48,30 @@ export default function JoinRoom() {
         const s = io({ reconnection: true, reconnectionDelay: 1000, reconnectionAttempts: 5 })
         setSocket(s)
 
-        s.on('connect', () => { setError('') })
-        s.on('disconnect', () => console.log('❌ Disconnected'))
+        try {
+            const saved = JSON.parse(sessionStorage.getItem('questify-player') || 'null')
+            if (saved && /^[A-Z0-9]{4,6}$/.test(saved.roomId) && typeof saved.name === 'string') {
+                membership.current = saved
+                setRoomCode(saved.roomId); setName(saved.name); setMyAvatar(saved.avatar || avatars[0])
+            }
+        } catch { /* Ignore obsolete or inaccessible storage. */ }
+        s.on('connect', () => { setError(''); if (membership.current) s.emit('join-room', membership.current) })
+        s.on('room-error', data => {
+            if (pendingJoin.current) clearTimeout(pendingJoin.current)
+            setIsJoining(false); setError(data.message)
+        })
+        s.on('game-paused', () => setPaused(true))
+        s.on('game-resumed', () => setPaused(false))
+        s.on('disconnect', () => setError('Connection interrupted. Reconnecting…'))
         s.on('connect_error', () => setError('Connection error. Retrying...'))
 
         s.on('room-joined', (data) => {
             setStep('game')
-            setGameState('WAITING')
+            if (pendingJoin.current) clearTimeout(pendingJoin.current)
+            if (membership.current) {
+                membership.current.playerId = data.playerId
+                try { sessionStorage.setItem('questify-player', JSON.stringify(membership.current)) } catch {}
+            }
             setError('')
             setIsJoining(false)
             audio.playJoin()
@@ -56,6 +79,14 @@ export default function JoinRoom() {
 
         s.on('game-state', (data) => {
             setGameState(data.state as GameState)
+            if (data.questionType) setQuestionType(data.questionType)
+            if (data.state === 'CONTENT') setSlide({ title: data.questionText, body: data.body || '', mediaUrl: data.mediaUrl || '' })
+            if (data.sessionStats) setHasCompetition(data.sessionStats.totalQuestions > 0)
+            if (data.state === 'INTRO') { setScore(0); setHasAnswered(false); setResultFeedback(null) }
+            if (data.feedback) setResultFeedback(data.feedback)
+            if (data.paused !== undefined) setPaused(data.paused)
+            if (data.hasAnswered !== undefined) setHasAnswered(data.hasAnswered)
+            if (data.answeredIndex !== undefined && typeof data.answeredIndex === 'number') setAnsweredIndex(data.answeredIndex)
 
             if (['QUESTION_REVEAL', 'THINKING'].includes(data.state)) {
                 setHasAnswered(false)
@@ -70,7 +101,7 @@ export default function JoinRoom() {
                 if (data.answers) setAnswers(data.answers)
                 if (data.questionType) setQuestionType(data.questionType)
             }
-            
+
             if (data.state === 'TRANSITION' && data.funFact) {
                 setFunFact(data.funFact)
             }
@@ -91,8 +122,8 @@ export default function JoinRoom() {
             }
         })
 
-        return () => { s.disconnect() }
-    }, [])
+        return () => { s.disconnect(); if (pendingJoin.current) clearTimeout(pendingJoin.current) }
+    }, [audio])
 
     const handleNextStep = useCallback(() => {
         if (roomCode.trim().length < 4) return setError('Please enter a valid PIN')
@@ -111,21 +142,25 @@ export default function JoinRoom() {
         setError('')
         setIsJoining(true)
 
-        socket.emit('join-room', { roomId: trimmedCode, name: trimmedName, color: myColor, avatar: myAvatar })
-        setTimeout(() => { if (step === 'name') { setIsJoining(false); setError('Failed to join.') } }, 5000)
+        membership.current = { roomId: trimmedCode, name: trimmedName, color: myColor, avatar: myAvatar,
+            ...(membership.current?.roomId === trimmedCode ? { playerId: membership.current.playerId } : {}) }
+        if (pendingJoin.current) clearTimeout(pendingJoin.current)
+        pendingJoin.current = setTimeout(() => { setIsJoining(false); setError('Joining timed out. Please try again.') }, 5000)
+        socket.emit('join-room', membership.current)
     }, [name, roomCode, myColor, myAvatar, socket, step])
 
     const submitAnswer = useCallback((idx: number | string) => {
-        if (!hasAnswered && gameState === 'ANSWERING' && socket) {
+        if (!paused && !hasAnswered && gameState === 'ANSWERING' && socket?.connected) {
             setHasAnswered(true)
             audio.playLock()
             if (typeof idx === 'number') setAnsweredIndex(idx)
             socket.emit('submit-answer', { roomId: roomCode, answerIndex: idx })
         }
-    }, [hasAnswered, gameState, socket, roomCode, audio])
+    }, [hasAnswered, gameState, socket, roomCode, audio, paused])
 
     const renderGameScreen = () => {
         switch (gameState) {
+            case 'CONTENT': return <ContentSlide title={slide.title} body={slide.body} mediaUrl={slide.mediaUrl} />
             case 'WAITING':
                 return (
                     <div className="flex flex-col items-center justify-center h-full text-center">
@@ -171,33 +206,34 @@ export default function JoinRoom() {
                             ) : questionType === 'TYPE_ANSWER' ? (
                                 <div className="h-full flex flex-col items-center justify-center bg-slate-800 rounded-2xl mx-2 p-6">
                                     <h3 className="text-2xl font-bold text-white mb-6 uppercase tracking-widest">Type your answer</h3>
-                                    <input 
-                                        type="text" 
+                                    <input aria-label="Your answer" maxLength={500}
+                                        type="text"
                                         className="w-full text-center text-3xl font-black p-6 rounded-2xl bg-white text-slate-900 border-4 border-indigo-500 outline-none mb-6 focus:scale-105 transition-transform"
                                         placeholder="Answer..."
                                         value={typedAnswer}
                                         onChange={(e) => setTypedAnswer(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && typedAnswer.trim() && submitAnswer(typedAnswer.trim())}
+                                        onKeyDown={(e) => e.key === 'Enter' && typedAnswer.trim() && submitAnswer(typedAnswer.trim())}
                                     />
-                                    <button 
+                                    <button
                                         onClick={() => typedAnswer.trim() && submitAnswer(typedAnswer.trim())}
-                                        disabled={!typedAnswer.trim()}
+                                        disabled={!typedAnswer.trim() || paused || !!error}
                                         className="w-full bg-indigo-600 disabled:bg-slate-700 py-6 rounded-2xl font-black text-white text-2xl"
                                     >
                                         Submit
                                     </button>
                                 </div>
                             ) : (
-                                <AnswerGrid answers={answers} showText={false} disabled={hasAnswered} onAnswerClick={submitAnswer} />
+                                <AnswerGrid answers={answers} showText={false} disabled={hasAnswered || paused || !!error} onAnswerClick={submitAnswer} />
                             )}
                         </div>
                     </div>
                 )
             case 'RESULTS':
             case 'LIVE_STATS':
+                if (questionType === 'POLL') return <div className="h-full flex flex-col items-center justify-center p-8 text-white bg-indigo-950 text-center"><h2 className="text-4xl font-bold">{hasAnswered ? 'Thanks for your vote!' : 'Voting has closed'}</h2><p className="mt-4 text-lg">See the results on the presentation screen. This poll has no right or wrong answers.</p></div>
                 return (
                     <div className={`flex flex-col items-center justify-center h-full transition-colors duration-500 ${resultFeedback?.correct ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} type="spring" className="text-center">
+                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" }} className="text-center">
                             <span className="text-9xl block mb-6">{resultFeedback?.correct ? '✓' : '✗'}</span>
                             <h2 className="text-6xl font-black text-white mb-2">{resultFeedback?.correct ? 'Correct!' : 'Incorrect'}</h2>
                             {resultFeedback?.correct && <p className="text-3xl font-bold text-emerald-200">+{resultFeedback.points}</p>}
@@ -225,6 +261,7 @@ export default function JoinRoom() {
                 )
             case 'FINAL_RESULTS':
             case 'END':
+                if (!hasCompetition) return <ContentSlide title="Presentation complete" body="Thanks for taking part!" />
                 return (
                     <div className="flex flex-col items-center justify-center h-full bg-indigo-950 text-center">
                         <span className="text-8xl block mb-6">🏁</span>
@@ -248,15 +285,15 @@ export default function JoinRoom() {
                     {step === 'code' ? 'Join Game' : 'Create Profile'}
                 </h1>
                 {step === 'code' ? (
-                    <input type="text" placeholder="Enter PIN" value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} onKeyPress={e => e.key === 'Enter' && handleNextStep()} maxLength={6}
+                    <input aria-label="Game PIN" autoComplete="off" spellCheck={false} type="text" placeholder="Enter PIN" value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && handleNextStep()} maxLength={6}
                         className="w-full bg-slate-800 text-white text-4xl font-bold text-center py-6 rounded-2xl border-4 border-slate-700 outline-none focus:border-indigo-500" />
                 ) : (
                     <div className="space-y-6">
-                        <input type="text" placeholder="Enter Nickname" value={name} onChange={e => setName(e.target.value)} onKeyPress={e => e.key === 'Enter' && joinGame()} maxLength={20}
+                        <input aria-label="Nickname" autoComplete="nickname" type="text" placeholder="Enter Nickname" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && joinGame()} maxLength={20}
                             className="w-full bg-slate-800 text-white text-2xl font-bold text-center py-6 rounded-2xl border-4 border-slate-700 outline-none focus:border-indigo-500" />
                         <div className="grid grid-cols-4 gap-4">
                             {avatars.map(av => (
-                                <button key={av} onClick={() => setMyAvatar(av)} className={`text-4xl p-4 rounded-2xl transition-all ${myAvatar === av ? 'bg-indigo-600 scale-110 shadow-lg' : 'bg-slate-800'}`}>{av}</button>
+                                <button aria-label={`Choose avatar ${av}`} aria-pressed={myAvatar === av} key={av} onClick={() => setMyAvatar(av)} className={`text-4xl p-4 rounded-2xl transition-all ${myAvatar === av ? 'bg-indigo-600 scale-110 shadow-lg' : 'bg-slate-800'}`}>{av}</button>
                             ))}
                         </div>
                     </div>
@@ -265,15 +302,17 @@ export default function JoinRoom() {
                     className="w-full bg-indigo-600 disabled:bg-slate-700 text-white py-6 rounded-2xl font-black text-2xl shadow-xl mt-6 active:scale-95">
                     {isJoining ? 'Joining...' : (step === 'code' ? "Next" : "Ready!")}
                 </button>
-                {error && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-rose-400 text-center font-bold text-lg">{error}</motion.p>}
+                {error && <motion.p role="alert" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-rose-400 text-center font-bold text-lg">{error}</motion.p>}
             </div>
         </div>
     )
 
     return (
         <div className="h-[100dvh] w-full bg-slate-900 font-sans overflow-hidden">
+            {error && <p role="alert" className="absolute top-0 inset-x-0 z-50 bg-rose-950 text-white p-3">{error}</p>}
+            {paused && <p role="status" className="absolute top-12 inset-x-0 z-50 bg-indigo-950 text-white p-3">Game paused</p> }
             <AnimatePresence mode="wait">
-                <motion.div key={gameState} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="h-full">
+                <motion.div key={gameState} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="h-full flex flex-col min-h-0">
                     {renderGameScreen()}
                 </motion.div>
             </AnimatePresence>

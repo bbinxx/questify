@@ -1,5 +1,6 @@
 'use client'
 
+import QuestionMedia from './QuestionMedia'
 import { motion } from 'framer-motion'
 
 interface QuestionCardProps {
@@ -16,10 +17,9 @@ export default function QuestionCard({ text, mediaUrl, className = '' }: Questio
         >
             {mediaUrl && (
                 <div className="w-full md:w-1/2 lg:w-2/5 flex-shrink-0 flex items-center justify-center overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-2 h-48 md:h-64">
-                    <img 
-                        src={mediaUrl} 
-                        alt="Question media" 
-                        className="max-h-full max-w-full object-contain rounded-lg shadow-sm" 
+                    <QuestionMedia
+                        src={mediaUrl}
+                        className="max-h-full max-w-full object-contain rounded-lg shadow-sm"
                     />
                 </div>
             )}

@@ -5,9 +5,8 @@ description: Develop or review Questify Next.js routes, React UI, TypeScript, Ta
 
 # Questify web development
 
-Trace the route and its data source before editing. This project uses Next.js 14
-and React 18; confirm APIs against installed versions instead of copying newer
-Next.js examples. Keep server actions in app/actions and server-only imports out
+Trace the route and its data source before editing. This project uses Next.js 16
+and React 19; confirm APIs against installed versions using node_modules/next/dist/docs/ for version-matched guidance. Keep server actions in app/actions and server-only imports out
 of client components. Add client boundaries only where browser state is needed.
 
 Use the existing Tailwind 4 PostCSS setup and visual conventions. Check presenter,

@@ -3,16 +3,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import QuestionCard from '../../components/game/QuestionCard'
 import AnswerGrid from '../../components/game/AnswerGrid'
 import confetti from 'canvas-confetti'
 import { getQuiz } from '../../actions/quiz'
+import ContentSlide from '@/app/components/activities/ContentSlide'
+import QuestionMedia from '@/app/components/game/QuestionMedia'
 import { useGameAudio } from '../../hooks/useGameAudio'
 
-interface Player { id: string; name: string; color: string; avatar: string; score: number; lastPoints: number; x: number; y: number; vx: number; vy: number; size?: number; rank?: number }
+interface Player { id: string; name: string; color: string; avatar: string; score: number; lastPoints: number; x: number; y: number; vx: number; vy: number; size?: number; rank?: number; connected?: boolean }
 interface Answer { text: string; color: string; icon: string; correct?: boolean }
-type GameState = 'WAITING' | 'INTRO' | 'QUESTION_REVEAL' | 'MEDIA_FOCUS' | 'THINKING' | 'ANSWERING' | 'LOCKED' | 'RESULTS' | 'LIVE_STATS' | 'LEADERBOARD' | 'TRANSITION' | 'FINAL_RESULTS' | 'END'
+type GameState = 'CONTENT' | 'WAITING' | 'INTRO' | 'QUESTION_REVEAL' | 'MEDIA_FOCUS' | 'THINKING' | 'ANSWERING' | 'LOCKED' | 'RESULTS' | 'LIVE_STATS' | 'LEADERBOARD' | 'TRANSITION' | 'FINAL_RESULTS' | 'END'
 
 export default function PresenterView() {
     const params = useParams()
@@ -25,21 +27,28 @@ export default function PresenterView() {
     const [isLoading, setIsLoading] = useState(true)
 
     const audio = useGameAudio()
+    const reducedMotion = useReducedMotion()
+    const [connectionError, setConnectionError] = useState('')
+    const [paused, setPaused] = useState(false)
+    const finaleRef = useRef<number | undefined>(undefined)
 
     // Lobby
     const [quizTitle, setQuizTitle] = useState('')
     const [players, setPlayers] = useState<Player[]>([])
     const containerRef = useRef<HTMLDivElement>(null)
-    const animRef = useRef<number>()
+    const animRef = useRef<number | undefined>(undefined)
 
     // Game Loop
     const [gameState, setGameState] = useState<GameState>('WAITING')
     const [questions, setQuestions] = useState<any[]>([])
     const [totalQ, setTotalQ] = useState(0)
-    
+
     // Per-Question
     const [qNum, setQNum] = useState(0)
     const [qText, setQText] = useState('')
+    const [slideBody, setSlideBody] = useState('')
+    const [activityScored, setActivityScored] = useState(true)
+    const [hasCompetition, setHasCompetition] = useState(true)
     const [mediaUrl, setMediaUrl] = useState('')
     const [answers, setAnswers] = useState<Answer[]>([])
     const [timeLeft, setTimeLeft] = useState(0)
@@ -62,35 +71,18 @@ export default function PresenterView() {
             if (res.success && res.quiz) {
                 setQuizTitle(res.quiz.title)
                 setTotalQ(res.quiz.questions.length)
-                const formatted = res.quiz.questions.map((q: any) => {
-                    let parsedAnswers = [];
-                    try {
-                        parsedAnswers = typeof q.options === 'string' ? JSON.parse(q.options) : (q.answers || q.options || []);
-                    } catch (e) { parsedAnswers = [] }
-                    
-                    return {
-                        question: q.text,
-                        time: parseInt(q.timeLimit) || 20,
-                        thinkTime: 5,
-                        mediaUrl: q.mediaUrl,
-                        type: q.type || 'MULTIPLE_CHOICE',
-                        correctIndex: parseInt(q.correct) || 0,
-                        answers: parsedAnswers.map((text: string, i: number) => ({
-                            text,
-                            color: ['bg-rose-500', 'bg-blue-500', 'bg-amber-500', 'bg-emerald-500'][i % 4],
-                            icon: ['△', '◇', '○', '□'][i % 4],
-                            correct: i === (parseInt(q.correct) || 0)
-                        }))
-                    }
-                })
-                setQuestions(formatted)
-                
-                const pin = Math.random().toString(36).substring(2, 6).toUpperCase()
+                setQuestions(res.quiz.questions)
+                let pin = Array.from(crypto.getRandomValues(new Uint8Array(6)), n => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n % 32]).join('')
+                try {
+                    const saved = sessionStorage.getItem(`questify-host:${quizId}`)
+                    if (saved && /^[A-Z0-9]{6}$/.test(saved)) pin = saved
+                    sessionStorage.setItem(`questify-host:${quizId}`, pin)
+                } catch { /* Session storage may be unavailable in private browsing. */ }
                 setRoomCode(pin)
                 setIsLoading(false)
-            }
+            } else { setConnectionError(res.error || 'Unable to load quiz'); setIsLoading(false) }
         }
-        loadQuiz()
+        loadQuiz().catch(() => { setConnectionError('Unable to load quiz'); setIsLoading(false) })
     }, [quizId])
 
     useEffect(() => {
@@ -98,15 +90,20 @@ export default function PresenterView() {
 
         const s = io()
         setSocket(s)
-        s.emit('host-room', { roomCode, questions })
+        s.on('connect', () => { setConnectionError(''); s.emit('host-room', { roomCode, gameId: quizId }) })
 
+        s.on('room-error', data => setConnectionError(data.message))
+        s.on('connect_error', () => setConnectionError('Connection interrupted. Retrying…'))
+        s.on('game-paused', () => setPaused(true))
+        s.on('game-resumed', () => setPaused(false))
+        s.on('session-error', data => setConnectionError(data.message))
         s.on('players-list', (pList) => setPlayers(pList))
         s.on('player-joined', (p) => {
-            setPlayers(prev => [...prev, p])
+            setPlayers(prev => [...prev.filter(player => player.id !== p.id), p])
             audio.playJoin()
         })
         s.on('player-left', (id) => setPlayers(prev => prev.filter(p => p.id !== id)))
-        
+
         s.on('response-count', ({ answered, total }) => {
             setAnsweredCount(answered)
             setTotalActiveCount(total)
@@ -117,65 +114,55 @@ export default function PresenterView() {
             if (data.quizTitle) setQuizTitle(data.quizTitle)
             if (data.totalQ) setTotalQ(data.totalQ)
             if (data.qIndex) setQNum(data.qIndex)
-            if (data.questionText) setQText(data.questionText)
+            if (data.questionText !== undefined) setQText(data.questionText)
+            if (data.body !== undefined) setSlideBody(data.body)
+            if (data.scored !== undefined) setActivityScored(data.scored)
+            if (data.sessionStats) setHasCompetition(data.sessionStats.totalQuestions > 0)
             if (data.mediaUrl !== undefined) setMediaUrl(data.mediaUrl)
             if (data.answers) setAnswers(data.answers)
             if (data.questionType) setQuestionType(data.questionType)
-            if (data.duration) setTimeLeft(data.duration)
+            if (data.duration !== undefined) setTimeLeft(data.duration)
+            if (data.paused !== undefined) setPaused(data.paused)
             if (data.correctIndex !== undefined) setCorrectIdx(data.correctIndex)
             if (data.stats) setStats(data.stats)
             if (data.leaderboard) setLeaderboard(data.leaderboard)
             if (data.funFact) setFunFact(data.funFact)
-            
+
             if (data.state === 'QUESTION_REVEAL') {
                 setAnsweredCount(0)
-                setTotalActiveCount(players.length)
+                setTotalActiveCount(0)
                 setCorrectIdx(-1)
                 setStats(null)
             }
             if (data.state === 'THINKING') audio.playTension()
             if (data.state === 'LOCKED') audio.playLock()
             if (data.state === 'RESULTS') audio.playReveal()
-            
+
             if (data.state === 'FINAL_RESULTS') {
-                triggerFinaleConfetti()
+                if (data.sessionStats?.totalQuestions > 0) triggerFinaleConfetti()
                 audio.playLevelUp()
-                
-                // Save session analytics
-                if (data.sessionStats) {
-                    fetch('/api/sessions', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            gameId: quizId,
-                            roomCode: roomCode,
-                            startedAt: data.sessionStats.startedAt,
-                            endedAt: data.sessionStats.endedAt,
-                            players: data.leaderboard,
-                            stats: data.sessionStats
-                        })
-                    }).catch(console.error)
-                }
+
+
             }
         })
-        return () => { s.disconnect() }
-    }, [roomCode, questions, players.length])
+        return () => { s.disconnect(); if (finaleRef.current) cancelAnimationFrame(finaleRef.current) }
+    }, [roomCode, questions.length, quizId, audio])
 
     // Timer Logic
     useEffect(() => {
-        if (timeLeft > 0 && (gameState === 'THINKING' || gameState === 'ANSWERING')) {
+        if (!paused && timeLeft > 0 && (gameState === 'THINKING' || gameState === 'ANSWERING')) {
             const t = setInterval(() => {
                 setTimeLeft(p => p - 1)
                 if (gameState === 'ANSWERING') audio.playTick()
             }, 1000)
             return () => clearInterval(t)
         }
-    }, [timeLeft, gameState, audio])
+    }, [timeLeft, gameState, audio, paused])
 
     // Keyboard Shortcuts
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
-            if (e.code === 'Space') handleNext()
+            if (e.code === 'Space' && !(e.target instanceof HTMLElement && e.target.closest('input, textarea, select, button, a'))) { e.preventDefault(); handleNext() }
         }
         window.addEventListener('keydown', handleKey)
         return () => window.removeEventListener('keydown', handleKey)
@@ -184,7 +171,7 @@ export default function PresenterView() {
     // Floating Avatars in WAITING
     useEffect(() => {
         const loop = () => {
-            if (gameState !== 'WAITING') return
+            if (gameState !== 'WAITING' || reducedMotion) return
             const cont = containerRef.current
             if (!cont) { animRef.current = requestAnimationFrame(loop); return }
             setPlayers(prev => prev.map(p => {
@@ -198,22 +185,24 @@ export default function PresenterView() {
         }
         animRef.current = requestAnimationFrame(loop)
         return () => { if (animRef.current) cancelAnimationFrame(animRef.current) }
-    }, [gameState])
+    }, [gameState, reducedMotion])
 
     function triggerFinaleConfetti() {
-        const duration = 15 * 1000;
+        if (reducedMotion) return
+        if (finaleRef.current) cancelAnimationFrame(finaleRef.current)
+        const duration = 5 * 1000;
         const animationEnd = Date.now() + duration;
         const colors = ['#4f46e5', '#ec4899', '#f59e0b', '#ffffff'];
 
         (function frame() {
             confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: colors })
             confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: colors })
-            if (Date.now() < animationEnd) requestAnimationFrame(frame)
+            if (Date.now() < animationEnd) finaleRef.current = requestAnimationFrame(frame)
         }())
     }
 
     const handleNext = () => {
-        if (!socket || !roomCode) return
+        if (!socket?.connected || !roomCode || paused) return
         if (gameState === 'WAITING') socket.emit('start-game', roomCode)
         else socket.emit('host-advance', roomCode)
     }
@@ -222,7 +211,7 @@ export default function PresenterView() {
 
     // ── VIEW COMPONENTS ──
 
-    const WaitingView = () => (
+    const renderWaitingView = () => (
         <div ref={containerRef} className="flex-1 relative bg-slate-900 overflow-hidden">
             {players.map(p => (
                 <div key={p.id} style={{ transform: `translate(${p.x}px, ${p.y}px)`, width: p.size, height: p.size }}
@@ -238,7 +227,7 @@ export default function PresenterView() {
                     <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-center justify-center mb-8 md:mb-10 w-full">
                         {joinUrl && (
                             <div className="bg-white p-3 md:p-4 rounded-xl shadow-lg shrink-0 pointer-events-auto border-4 border-indigo-500/30">
-                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(joinUrl)}`} alt="QR" className="w-32 h-32 md:w-44 md:h-44" />
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(joinUrl)}`} alt="QR" className="w-32 h-32 md:w-44 md:h-44"  width={300} height={300} />
                             </div>
                         )}
                         <div className="text-center md:text-left">
@@ -257,7 +246,7 @@ export default function PresenterView() {
         </div>
     )
 
-    const IntroView = () => (
+    const renderIntroView = () => (
         <div className="flex-1 bg-indigo-900 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="z-10">
                 <h2 className="text-2xl text-indigo-300 font-bold tracking-widest uppercase mb-4">Get Ready</h2>
@@ -271,7 +260,7 @@ export default function PresenterView() {
         </div>
     )
 
-    const TransitionView = () => (
+    const renderTransitionView = () => (
         <div className="flex-1 bg-slate-800 flex flex-col items-center justify-center p-8 text-center">
             <h2 className="text-2xl text-slate-400 font-bold uppercase mb-8">Up Next: Question {qNum}</h2>
             <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="max-w-2xl bg-white/10 p-8 rounded-3xl border border-white/20 backdrop-blur-md">
@@ -282,14 +271,14 @@ export default function PresenterView() {
         </div>
     )
 
-    const GameplayView = () => {
+    const renderGameplayView = () => {
         const isReveal = gameState === 'QUESTION_REVEAL'
         const isMedia = gameState === 'MEDIA_FOCUS'
         const isThinking = gameState === 'THINKING'
         const isAnswering = gameState === 'ANSWERING'
         const isLocked = gameState === 'LOCKED'
         const isResult = gameState === 'RESULTS' || gameState === 'LIVE_STATS'
-        
+
         const showAnswers = isAnswering || isLocked || isResult
         const dimAnswers = isLocked || isResult
         const showTimer = isThinking || isAnswering
@@ -299,16 +288,16 @@ export default function PresenterView() {
                 {/* Header */}
                 <div className="flex justify-between items-center mb-4 md:mb-8 h-16 md:h-20 shrink-0">
                     <span className="text-white/50 font-bold text-xl uppercase tracking-wider">{qNum} of {totalQ}</span>
-                    
+
                     {isAnswering && (
                         <div className="flex items-center gap-4">
                             <span className="text-white/60 font-bold text-xl">{answeredCount} / {totalActiveCount} Answers</span>
                         </div>
                     )}
-                    
+
                     <div className="w-20 h-20 flex items-center justify-center">
                         {showTimer && (
-                            <motion.div key={gameState} initial={{ scale: 0.5 }} animate={{ scale: 1 }} 
+                            <motion.div key={gameState} initial={{ scale: 0.5 }} animate={{ scale: 1 }}
                                 className={`w-full h-full rounded-full flex items-center justify-center font-black text-white text-3xl border-4 tabular-nums shadow-lg ${isThinking ? 'bg-slate-700 border-slate-500' : 'bg-indigo-600 border-indigo-400 shadow-indigo-500/20'}`}>
                                 {timeLeft}
                             </motion.div>
@@ -323,7 +312,7 @@ export default function PresenterView() {
                         {isMedia && mediaUrl && (
                             <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }}
                                 className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-8">
-                                <img src={mediaUrl} className="max-w-full max-h-[70vh] rounded-2xl shadow-2xl object-contain mb-8" />
+                                <QuestionMedia src={mediaUrl} className="max-w-full max-h-[70vh] rounded-2xl shadow-2xl object-contain mb-8" />
                                 <h2 className="text-4xl font-black text-white text-center">{qText}</h2>
                             </motion.div>
                         )}
@@ -345,7 +334,7 @@ export default function PresenterView() {
                                 </h3>
                             </div>
                         )}
-                        
+
                         {showAnswers && (
                             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} className={`h-full flex items-center justify-center ${dimAnswers ? 'filter grayscale-[50%]' : ''}`}>
                                 {questionType === 'TYPE_ANSWER' ? (
@@ -357,12 +346,12 @@ export default function PresenterView() {
                                     </div>
                                 ) : (
                                     <div className="w-full h-full">
-                                        <AnswerGrid answers={answers} revealed={isResult} correctIndex={correctIdx} disabled={true} />
+                                        <AnswerGrid answers={answers} revealed={isResult && activityScored} correctIndex={correctIdx} disabled={true} />
                                     </div>
                                 )}
                             </motion.div>
                         )}
-                        
+
                         {/* Live Stats Overlay */}
                         <AnimatePresence>
                             {gameState === 'LIVE_STATS' && stats && (
@@ -399,7 +388,7 @@ export default function PresenterView() {
         )
     }
 
-    const LeaderboardView = () => (
+    const renderLeaderboardView = () => (
         <div className="flex-1 bg-slate-900 p-4 md:p-10 flex flex-col items-center h-full overflow-hidden">
             <h2 className="text-4xl md:text-5xl font-black text-white mb-8">Scoreboard</h2>
             <div className="w-full max-w-4xl space-y-4 flex-1 min-h-0 overflow-y-auto pb-10">
@@ -420,7 +409,7 @@ export default function PresenterView() {
         </div>
     )
 
-    const PodiumView = () => {
+    const renderPodiumView = () => {
         const top3 = leaderboard.slice(0, 3)
         const [first, second, third] = [top3[0], top3[1], top3[2]]
         return (
@@ -467,12 +456,15 @@ export default function PresenterView() {
 
     return (
         <div className="h-screen flex flex-col font-sans overflow-hidden bg-slate-900">
-            {gameState === 'WAITING' && <WaitingView />}
-            {gameState === 'INTRO' && <IntroView />}
-            {isGamePlay && <GameplayView />}
-            {gameState === 'LEADERBOARD' && <LeaderboardView />}
-            {gameState === 'TRANSITION' && <TransitionView />}
-            {(gameState === 'FINAL_RESULTS' || gameState === 'END') && <PodiumView />}
+            {connectionError && <p role="alert" className="fixed top-2 left-2 right-2 bg-rose-950 text-white p-3 z-50">{connectionError}</p>}
+            {paused && <p role="status" className="fixed top-16 left-2 bg-indigo-950 text-white p-3 z-50">Game paused</p>}
+            {gameState === 'CONTENT' && <ContentSlide title={qText} body={slideBody} mediaUrl={mediaUrl} />}
+            {gameState === 'WAITING' && renderWaitingView()}
+            {gameState === 'INTRO' && renderIntroView()}
+            {isGamePlay && renderGameplayView()}
+            {gameState === 'LEADERBOARD' && renderLeaderboardView()}
+            {gameState === 'TRANSITION' && renderTransitionView()}
+            {(gameState === 'FINAL_RESULTS' || gameState === 'END') && (hasCompetition ? renderPodiumView() : <ContentSlide title="Presentation complete" body="Thank you for taking part. Your responses have been recorded." />)}
 
             {/* Global Bottom Control Bar */}
             {gameState !== 'FINAL_RESULTS' && gameState !== 'END' && (
@@ -483,11 +475,14 @@ export default function PresenterView() {
                     </div>
                     <div className="flex items-center gap-4">
                         {gameState !== 'WAITING' && (
-                            <button onClick={() => socket?.emit('end-game', roomCode)} className="text-red-500 hover:bg-red-50 px-6 py-4 rounded-xl font-bold text-lg transition-colors">
+                            <>
+                            <button onClick={() => socket?.emit(paused ? 'host-resume' : 'host-pause', roomCode)} className="px-4 py-3 font-bold">{paused ? 'Resume' : 'Pause'}</button>
+                            <button onClick={() => { if (window.confirm('End this game for everyone?')) socket?.emit('end-game', roomCode) }} className="text-red-500 hover:bg-red-50 px-6 py-4 rounded-xl font-bold text-lg transition-colors">
                                 End Game
                             </button>
+                            </>
                         )}
-                        <button onClick={handleNext} className="bg-black hover:bg-slate-800 text-white px-12 py-5 rounded-xl font-bold text-xl shadow-xl flex items-center gap-3 transition-transform active:scale-95">
+                        <button disabled={!!connectionError || paused} onClick={handleNext} className="bg-black hover:bg-slate-800 text-white px-12 py-5 rounded-xl font-bold text-xl shadow-xl flex items-center gap-3 transition-transform active:scale-95">
                             {gameState === 'WAITING' ? 'Start Game' : 'Skip Next ⏭'}
                         </button>
                     </div>

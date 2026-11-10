@@ -1,5 +1,5 @@
 import { DatabaseService } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { getSessionUserId } from '@/lib/session'
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { logout } from '@/app/actions/auth';
@@ -17,11 +17,11 @@ const ChartIcon = () => (
 )
 
 export default async function AnalyticsDashboard() {
-    const userId = cookies().get('userId')?.value;
+    const userId = await getSessionUserId();
 
     if (!userId) redirect('/login');
 
-    const user = await DatabaseService.getUserByUsername(userId); // wait, userId is the username right now or the ID? Wait, auth saves ID in cookie.
+    const user = await DatabaseService.getUserById(userId);
     if (!user) redirect('/login');
 
     const sessions = await DatabaseService.getHostSessions(userId);
@@ -62,7 +62,7 @@ export default async function AnalyticsDashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-12">
                     <div>
                         <h1 className="text-4xl font-black text-white flex items-center gap-4 tracking-tight">
-                            <span className="p-3 bg-indigo-500/20 rounded-2xl text-indigo-400"><ChartIcon /></span> 
+                            <span className="p-3 bg-indigo-500/20 rounded-2xl text-indigo-400"><ChartIcon /></span>
                             Session Analytics
                         </h1>
                         <p className="text-slate-400 mt-2 font-medium ml-[4.5rem]">Review performance and insights from past games.</p>
@@ -80,12 +80,13 @@ export default async function AnalyticsDashboard() {
                         </p>
                         <Link href="/dashboard" className="inline-block px-8 py-4 bg-white text-indigo-950 font-black rounded-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-all duration-300">Go to Library</Link>
                     </div>
+                ) : (
                     <div className="space-y-8">
                         {sessions.map((session, i) => {
                             const totalQuestions = session.stats?.global?.totalAnswered || 0;
                             const accuracy = totalQuestions > 0 ? Math.round((session.stats?.global?.correctCount / totalQuestions) * 100) : 0;
                             const durationMinutes = Math.round((new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 60000) || 1;
-                            
+
                             return (
                                 <div key={session.id || i} className="bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl transition-all">
                                     <div className="p-8 md:p-10 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-8">
@@ -94,7 +95,7 @@ export default async function AnalyticsDashboard() {
                                                 <span className="px-4 py-1.5 bg-indigo-500/20 text-indigo-300 font-black text-xs rounded-lg tracking-widest uppercase border border-indigo-500/30">PIN: {session.roomCode}</span>
                                                 <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">{new Date(session.startedAt).toLocaleString()}</span>
                                             </div>
-                                            <h2 className="text-3xl font-black text-white">Live Game Session</h2>
+                                            <h2 className="text-3xl font-black text-white">Session report</h2>
                                         </div>
                                         <div className="flex gap-10 bg-black/20 p-6 rounded-2xl border border-white/5">
                                             <div className="text-center">
@@ -103,7 +104,7 @@ export default async function AnalyticsDashboard() {
                                             </div>
                                             <div className="text-center">
                                                 <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Accuracy</p>
-                                                <p className={`text-4xl font-black ${accuracy >= 50 ? 'text-emerald-400' : 'text-rose-400'}`}>{accuracy}%</p>
+                                                <p className={`text-4xl font-black ${accuracy >= 50 ? 'text-emerald-400' : 'text-rose-400'}`}>{totalQuestions > 0 ? `${accuracy}%` : '—'}</p>
                                             </div>
                                             <div className="text-center">
                                                 <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Duration</p>
@@ -111,7 +112,7 @@ export default async function AnalyticsDashboard() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="p-8 md:p-10 bg-black/30">
+                                    {session.stats?.totalQuestions !== 0 && <div className="p-8 md:p-10 bg-black/30">
                                         <h3 className="text-sm font-black text-slate-500 mb-8 uppercase tracking-widest flex items-center gap-3">
                                             Leaderboard Snapshot
                                             <div className="h-px flex-1 bg-white/5" />
@@ -128,6 +129,17 @@ export default async function AnalyticsDashboard() {
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>}
+                                    <div className="px-8 pb-8 space-y-4">
+                                        <h3 className="font-bold text-xl text-white">Activity results</h3>
+                                        {(session.stats?.perQuestion || []).map((activity: any, index: number) => (
+                                            <article key={activity.activityId || index} className="p-5 rounded-2xl bg-white/5 border border-white/10">
+                                                <p className="text-xs font-bold text-indigo-300">{activity.kind === 'poll' ? 'Poll · unscored' : 'Quiz'}</p>
+                                                <h4 className="font-bold text-white mt-2 break-words">{activity.text}</h4>
+                                                <p className="text-sm text-slate-300 mt-2">{activity.totalAnswered} responses{activity.scored !== false ? ` · ${activity.correctCount} correct` : ''}</p>
+                                                {activity.options && <ul className="mt-3 space-y-1">{activity.options.map((option: string, optionIndex: number) => <li key={optionIndex} className="text-sm text-slate-300 break-words">{option}: {activity.answerCounts?.[optionIndex] || 0}</li>)}</ul>}
+                                            </article>
+                                        ))}
                                     </div>
                                 </div>
                             )
